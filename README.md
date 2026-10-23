@@ -23,6 +23,7 @@
 应用内置匹配的 SHA-256 清单，无需手工解压或复制 JSON。
 
 资源生成、校验及恢复方法见 [资源指南](docs/resource-packs.md)。
+实机签名、资源导入和日志定位见 [iPhone 测试](docs/device-testing.md)。
 
 ## 构建
 
