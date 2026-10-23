@@ -18,10 +18,10 @@ jobs:
         include:
           - variant: native-capture
             renderer: native
-            extra: --debug-raster 0
-          - variant: native-no-depth-cull
+            extra: --metal-fast-math 2
+          - variant: native-precise-math
             renderer: native
-            extra: --debug-raster 3
+            extra: --metal-fast-math 0
     runs-on: macos-26
     timeout-minutes: 120
     env:

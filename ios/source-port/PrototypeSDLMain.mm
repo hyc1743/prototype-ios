@@ -8,6 +8,7 @@
 #include <SDL3/SDL_main.h>
 
 #import <UIKit/UIKit.h>
+#import <AVFoundation/AVFoundation.h>
 #import <CoreFoundation/CoreFoundation.h>
 #import "PrototypeImportViewController.h"
 
@@ -28,6 +29,36 @@ int prototype_game_main(int argc, char **argv);
 // creates it. It must tolerate repeated shown events for the same window.
 // An absent implementation provides no virtual controller.
 extern "C" void prototype_install_touch_controls(SDL_Window *) __attribute__((weak_import));
+
+static void ConfigureAudioTiming(void) {
+    AVAudioSession *session = AVAudioSession.sharedInstance;
+    NSError *error = nil;
+    if (![session setPreferredSampleRate:48000 error:&error])
+        fprintf(stderr, "[prototype-source] audio rate preference: %s\n", error.localizedDescription.UTF8String);
+    error = nil;
+    if (![session setPreferredIOBufferDuration:256.0 / 48000.0 error:&error])
+        fprintf(stderr, "[prototype-source] audio duration preference: %s\n", error.localizedDescription.UTF8String);
+    fprintf(stderr, "[prototype-source] audio session actual_rate=%.0f actual_io_ms=%.3f preferred_io_ms=5.333\n",
+            session.sampleRate, session.IOBufferDuration * 1000.0);
+}
+
+static void InstallAudioTiming(void) {
+    SDL_SetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, "256");
+    ConfigureAudioTiming();
+    static id foregroundObserver;
+    static id interruptionObserver;
+    if (!foregroundObserver) {
+        foregroundObserver = [NSNotificationCenter.defaultCenter
+            addObserverForName:UIApplicationDidBecomeActiveNotification object:nil
+            queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *) { ConfigureAudioTiming(); }];
+        interruptionObserver = [NSNotificationCenter.defaultCenter
+            addObserverForName:AVAudioSessionInterruptionNotification object:nil
+            queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *notification) {
+                if ([notification.userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue] ==
+                    AVAudioSessionInterruptionTypeEnded) ConfigureAudioTiming();
+            }];
+    }
+}
 
 @interface PrototypeSDLStartupError : UIViewController
 @property(nonatomic, copy) NSString *message;
@@ -318,6 +349,7 @@ static int SDLCALL PrototypeSDLMain(int argc, char **argv) {
                 if (!WaitForRetry(error.localizedDescription)) return EXIT_SUCCESS;
                 continue;
             }
+            InstallAudioTiming();
             SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "uikit", SDL_HINT_OVERRIDE);
             SDL_SetHint(SDL_HINT_APP_NAME, "Prototype");
             // GameController input is merged with touch by the virtual pad.

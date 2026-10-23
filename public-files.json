@@ -12,6 +12,7 @@
   "ci-inputs/guest.enc",
   "ci-inputs/guest.json",
   "docs/device-testing.md",
+  "docs/apple-reference-findings.md",
   "docs/github-cloud.md",
   "docs/memory-layout.md",
   "docs/native-dev4.md",

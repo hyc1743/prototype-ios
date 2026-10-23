@@ -141,6 +141,9 @@ def probe(args):
         config = out / "private/prototype.toml"
         shutil.copyfile(ROOT / "ios/config/prototype.toml", config)
         env["PROTOTYPE_CONFIG_PATH"] = str(config)
+        if args.metal_fast_math is not None:
+            env["MVK_CONFIG_FAST_MATH_ENABLED"] = str(args.metal_fast_math)
+        report["metal_fast_math"] = env.get("MVK_CONFIG_FAST_MATH_ENABLED", "default")
         shader_dump = out / "private/spirv"
         shader_dump.mkdir()
         env["PROTOTYPE_SPIRV_DUMP"] = str(shader_dump)
@@ -233,6 +236,7 @@ def main():
     parser.add_argument("--renderer", choices=("native", "xenos"), default="native")
     parser.add_argument("--safe-native", action="store_true")
     parser.add_argument("--debug-raster", type=int, choices=(0, 1, 2, 3), default=0)
+    parser.add_argument("--metal-fast-math", type=int, choices=(0, 1, 2))
     result = probe(parser.parse_args())
     print(json.dumps(result, indent=2))
     return 0 if result["status"] == "observation_finished" else 1
