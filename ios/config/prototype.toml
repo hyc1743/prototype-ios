@@ -47,3 +47,7 @@ log_level = "warn"
 log_flush_level = "warn"
 p2_frame_diagnostics = false
 vulkan_validation_enabled = false
+
+# Apple/MoltenVK capability selection; retain validation of all required shader features.
+vulkan_require_geometry_shader = false
+vulkan_require_fill_mode_non_solid = false

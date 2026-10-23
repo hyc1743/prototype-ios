@@ -3,6 +3,13 @@
 #include <stdio.h>
 #include <math.h>
 
+static BOOL ImportWindowActive(UIWindow *window) {
+    if (!window) return NO;
+    UIWindowScene *scene = window.windowScene;
+    return scene ? scene.activationState == UISceneActivationStateForegroundActive
+                 : UIApplication.sharedApplication.applicationState == UIApplicationStateActive;
+}
+
 @implementation PrototypeImportViewController {
     UILabel *_status;
     UIProgressView *_progress;
@@ -55,6 +62,8 @@
     ]];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(startImport)
         name:UISceneDidActivateNotification object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(startImport)
+        name:UIApplicationDidBecomeActiveNotification object:nil];
 }
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
@@ -62,8 +71,7 @@
 }
 - (void)dealloc { [NSNotificationCenter.defaultCenter removeObserver:self]; }
 - (void)finishIfActive {
-    UIWindowScene *scene = self.view.window.windowScene;
-    if (!_finished || !_ready || !scene || scene.activationState != UISceneActivationStateForegroundActive) return;
+    if (!_finished || !_ready || !ImportWindowActive(self.view.window)) return;
     if (_ready()) _ready = nil;
     else {
         _finished = NO;
@@ -72,8 +80,7 @@
 }
 - (void)startImport {
     [self finishIfActive];
-    if (_running || _finished || !self.view.window ||
-        self.view.window.windowScene.activationState != UISceneActivationStateForegroundActive) return;
+    if (_running || _finished || !ImportWindowActive(self.view.window)) return;
     _running = YES;
     _retry.enabled = NO;
     _status.text = @"正在检查资源…";

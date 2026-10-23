@@ -7,6 +7,17 @@ binary-preserving bridge is possible in principle, but a working allocator and
 successful startup do not solve its 4 KiB mirror phase, fault handling, GPU
 coherence, or atomic operations.
 
+`tools/prepare_source_port.py --generated <generated/default> --fetch-dependencies`
+now materializes that source build in a fresh workspace. It pins the documented
+SDK base `a85b0b419ec3e332165ae1617c980bd399856a44`, applies the original
+Prototype SDK compatibility patch, and records exact source edits and generated
+file hashes. The source-port CMake target uses the Apple memory backend, static
+runtime/GPU registration and linked MoltenVK, with hooks for the UIKit entry and
+resource importer. Preparation has succeeded with 157 generated C++ units and
+17 pinned vendor gitlinks; this establishes build inputs, not a compiled or
+playable app. The generated Mach-O cooperative fiber adaptation still requires
+target compilation and execution tests.
+
 `python tools/memory_analysis.py` reproduces the evidence in
 `work/analysis/memory/memory.json` and the bounded disassembly files. The input
 must have SHA-256

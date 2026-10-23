@@ -3,7 +3,9 @@
 将当前 `switch/prototype-nx` 的 Prototype 版本适配到 iPhone / iPad，使用
 nxnative 原生宿主与 MoltenVK。参考实现为本地 `../weixing3` 项目。
 
-当前处于开发阶段。生成 IPA、通过启动测试与完整游戏可玩性是分别验证的项目；
+当前处于开发阶段，**尚未发布可安装的 IPA**。资源分卷已发布至
+[resources-v1](https://github.com/hyc1743/prototype-ios/releases/tag/resources-v1)。
+生成 IPA、通过启动测试与完整游戏可玩性是分别验证的项目；
 完整游戏、iPhone 实机画面、音频及存档尚未验证。构建结果见
 [GitHub Actions](https://github.com/hyc1743/prototype-ios/actions)。
 
@@ -29,6 +31,10 @@ nxnative 原生宿主与 MoltenVK。参考实现为本地 `../weixing3` 项目�
 NSP、Switch keys、明文 NRO 和游戏资源不会进入 Git 历史。
 构建密钥通过仓库 Secret `PROTOTYPE_GUEST_KEY` 提供。
 详见 [云端构建](docs/github-cloud.md)。
+
+生产移植路线正在把原始 PPC 静态翻译、原生渲染器及 ReXGlue SDK 重新编译为 Apple ARM64，
+以正确处理 Apple 16 KiB 内存页。`build-source-ios.yml` 是此路线的专用构建；
+`build-ios.yml` 保留原 NRO 原生宿主的启动诊断。两者都不会仅凭编译成功声称游戏可玩。
 
 本地分析工具严格核对当前 NRO 的 SHA-256：
 `16165370c4484394c81a775f48b1b2b47c833cc2bd412727935cb0fb17401330`。

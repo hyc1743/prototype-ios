@@ -77,7 +77,7 @@ void prototype_libnx_app_init(void) {
 }
 static uint32_t success(void) { return 0; }
 static uint32_t unavailable(void) { return 0xF601; }
-static int application_type(void) { return 3; }
+static int application_type(void) { return 0; }
 static int focus(void) { return 1; }
 static int handheld(void) { return 0; }
 static int applet_loop(void) { guest_clock_read_wait(); return 1; }
