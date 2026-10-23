@@ -32,6 +32,23 @@ def capture_pass_source(text):
                         capture + '\n  // Record.\n  if (!BeginPass(targets))')
 
 
+def attachment_pass_source(text):
+    # Pipelines are keyed by the draw's exact attachments. The device does
+    # not enable dynamicRenderingUnusedAttachments, so a superset render
+    # scope violates vkCmdDraw 06179 / 08910 / 08914.
+    text = replace_once(text,
+        '      if (targets.color[i] && targets.color[i] != pass.color[i]) compatible = false;',
+        '      if (targets.color[i] != pass.color[i]) compatible = false;')
+    text = replace_once(text,
+        '    if (targets.depth && targets.depth != pass.depth) compatible = false;',
+        '    if (targets.depth != pass.depth) compatible = false;')
+    return text.replace(
+        '// Keep the scope if every attachment the draw needs is already bound at\n'
+        '    // the same slot.',
+        '// Reuse only an exact attachment set: the pipeline formats must\n'
+        '    // match every attachment in this dynamic rendering scope.')
+
+
 def exception_source(text):
     text = replace_once(text, '#include <signal.h>', '#include <signal.h>\n#include <unistd.h>')
     return replace_once(text, '''  }
@@ -319,7 +336,7 @@ namespace shaders {''')
           translation->Dump(dump, "spirv");
         translation->GetOrCreateShaderModule();
       }''')
-    text = capture_pass_source(alias_pass_source(text))
+    text = capture_pass_source(alias_pass_source(attachment_pass_source(text)))
     return replace_once(text, '  // Record.\n  if (!BeginPass(targets)) return skip(14);',
         '''  if (capture_all && setup.active_ps &&
       setup.active_ps->ucode_data_hash() == UINT64_C(0xFEECC8EB051119C6)) {

@@ -8,10 +8,61 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
 from apple_native_fixes import (audio_source, renderer_source, translator_source,
-                                alias_pass_source, capture_pass_source)
+                                alias_pass_source, capture_pass_source, attachment_pass_source)
 
 
 class AppleNativeFixTests(unittest.TestCase):
+    def test_attachment_removal_cannot_reuse_an_incompatible_dynamic_scope(self):
+        compiler = shutil.which('g++') or shutil.which('clang++')
+        if not compiler:
+            self.skipTest('C++ compiler unavailable')
+        fixture = r'''
+#include <iostream>
+struct Targets {int color[4];int depth;};
+struct Renderer {
+  bool in_pass=false;Targets pass{};int invalid=0;
+  void BeginPass(const Targets& targets) {
+    if(in_pass) {
+      bool compatible = true;
+      for (unsigned i=0;i<4;++i) {
+      if (targets.color[i] && targets.color[i] != pass.color[i]) compatible = false;
+      }
+    if (targets.depth && targets.depth != pass.depth) compatible = false;
+      if(compatible) return;
+    }
+    pass=targets;in_pass=true;
+  }
+  void Draw(const Targets& pipeline) {
+    BeginPass(pipeline);
+    // Without dynamicRenderingUnusedAttachments, pipeline and scope formats
+    // must agree even when the shader does not use a leftover attachment.
+    bool valid=pass.depth==pipeline.depth;
+    for(unsigned i=0;i<4;++i) valid &= pass.color[i]==pipeline.color[i];
+    invalid += !valid;
+  }
+};
+int main() {
+  Renderer r;
+  r.Draw({{1,2,0,0},3});
+  r.Draw({{1,2,0,0},3}); // exact reuse stays valid
+  r.Draw({{1,0,0,0},3}); // remove MRT1
+  r.Draw({{1,0,0,0},0}); // remove depth for a post pass
+  r.Draw({{0,0,0,0},3}); // depth-only pass must not retain colors
+  std::cout<<r.invalid;
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            for label, source, expected in [('before', fixture, '3'),
+                                             ('after', attachment_pass_source(fixture), '0')]:
+                cpp = directory / (label + '.cpp')
+                cpp.write_text(source)
+                executable = directory / (label + ('.exe' if sys.platform == 'win32' else ''))
+                subprocess.run([compiler, '-std=c++17', str(cpp), '-o', str(executable)],
+                               check=True, capture_output=True)
+                result = subprocess.run([str(executable)], check=True, capture_output=True, text=True)
+                self.assertEqual(result.stdout, expected)
+
     def test_capture_readbacks_preserve_render_pass_and_bound_state(self):
         compiler = shutil.which('g++') or shutil.which('clang++')
         if not compiler:

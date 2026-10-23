@@ -7,7 +7,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: prototype-macos-source-probe
+  group: prototype-macos-source-probe-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
@@ -16,9 +16,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - variant: native-post-cycle
+          - variant: native-exact-attachments
             renderer: native
-            extra: --post-cycle
+            extra: --debug-raster 0
     runs-on: macos-26
     timeout-minutes: 120
     env:

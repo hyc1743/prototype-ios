@@ -103,6 +103,8 @@ def probe(args):
               "scope": "Source-native macOS diagnostic with verified resources and ordinary SDL input"}
     report["renderer_requested"] = args.renderer
     report["safe_native"] = args.safe_native
+    report["debug_raster"] = args.debug_raster
+    report["post_cycle"] = args.post_cycle
     try:
         generated = args.generated.resolve()
         verify_generated(generated)
