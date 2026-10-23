@@ -103,7 +103,7 @@ target_compile_options(prototype PRIVATE -ffp-contract=off -fno-strict-aliasing)
 target_compile_options(prototype PRIVATE "$<$<COMPILE_LANGUAGE:OBJC,OBJCXX>:-fobjc-arc>")
 # The runtime already owns rexcore/rexui/etc.; linking those object libraries a
 # second time would duplicate the cvar registry and other process state.
-target_link_libraries(prototype PRIVATE prototype_recomp rex::runtime rexgpu-xenos prototype_moltenvk
+target_link_libraries(prototype PRIVATE prototype_recomp rex::runtime rexgpu-xenos xxHash::xxhash prototype_moltenvk
     "-framework Metal" "-framework QuartzCore" "-framework IOSurface" "-framework Foundation")
 # Runtime archives contain registration constructors and overrides of weak
 # generated imports. Keep those members as the original static Switch build
