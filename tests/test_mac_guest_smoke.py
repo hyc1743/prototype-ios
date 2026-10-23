@@ -28,6 +28,12 @@ class MacGuestSmokeTests(unittest.TestCase):
         self.assertTrue(all(checks.values()))
         self.assertEqual(result, -7)
 
+    def test_sdk_noreturn_exit_is_captured_by_the_native_platform(self):
+        trace = TRACE.replace("original main returned 1", "original main exited 1 via native platform")
+        checks, result = runtime_evidence(trace, 0)
+        self.assertTrue(all(checks.values()))
+        self.assertEqual(result, 1)
+
     def test_crashes_and_partial_or_foreign_traces_cannot_pass(self):
         for log, code in ((TRACE, -11), (TRACE, 139), (TRACE, None), (TRACE, False),
                           (TRACE + "[dm] CRASH sig=11\n", 0),

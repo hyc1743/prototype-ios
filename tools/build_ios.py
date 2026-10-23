@@ -126,7 +126,7 @@ def guest_startup_result(report):
             report.get("reason") == "requires_native_arm64_macos"):
         return False
     required = ("libnx_initialized", "original_main_entered",
-                "original_main_returned", "host_returned_normally", "startup_trace_ordered", "no_crash_reported")
+                "original_main_finished", "host_returned_normally", "startup_trace_ordered", "no_crash_reported")
     if (report.get("status") != "passed" or report.get("verified") is not True or
             report.get("guest_sha256") != PINNED_SHA256 or
             report.get("exit_code") != 0 or type(report.get("guest_main_result")) is not int or

@@ -81,7 +81,7 @@ def runtime_evidence(log, exit_code):
     checks = {
         "libnx_initialized": initialized is not None,
         "original_main_entered": entered is not None,
-        "original_main_returned": returned is not None,
+        "original_main_finished": returned is not None,
         "startup_trace_ordered": bool(initialized and entered and returned and
                                       initialized.start() < entered.start() < returned.start()),
         "host_returned_normally": type(exit_code) is int and exit_code == 0,
@@ -174,7 +174,8 @@ def run_smoke(staged, moltenvk, prefix, timeout=120, windowed=False, game_root=N
         log = run_log.read_text(encoding="utf8", errors="replace")
         checks, guest_result = runtime_evidence(log, executed.returncode)
         report.update(checks=checks, guest_main_result=guest_result, verified=all(checks.values()),
-                      run_log_sha256=digest(run_log))
+                      run_log_sha256=digest(run_log),
+                      guest_termination=("native-platform-exit" if "via native platform" in log else "main-return"))
         report["status"] = "passed" if report["verified"] else "failed"
         if not report["verified"]:
             report["reason"] = "guest_startup_evidence_incomplete_or_abnormal_return"

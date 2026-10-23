@@ -78,6 +78,7 @@ class StageTests(unittest.TestCase):
             (host / "main.c").write_text("original")
             (host / "Makefile").write_text("SRC=main.c loader.c\nGFX=../gfx/vk/*.m\n")
             (host / "hle_hid.c").write_text("/* native input */\n")
+            (host / "hle_svc.c").write_text("    mem_init();\n    if (svc_thread(num, regs)) return regs[0];\n")
             (ui / "main.m").write_text(FRONTEND)
             original_pad = b"/* Switch layout: right A, bottom B, top X, left Y */"
             (ui / "DmGamepad.m").write_bytes(original_pad)
@@ -97,6 +98,7 @@ case 2: dm_gfx_suspend(0);
             self.assertIn("prototype_vk_suspend(0)", front)
             self.assertIn("prototype_audio_suspend(g_audio_bg || g_audio_intr)", front)
             self.assertIn("prototype_read_native_pad", (host / "hle_hid.c").read_text())
+            self.assertIn("prototype_platform_svc(num, regs)", (host / "hle_svc.c").read_text())
 
     def test_embedded_section_hashes_cover_guest_and_signing_padding(self):
         with tempfile.TemporaryDirectory() as temporary:

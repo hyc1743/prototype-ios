@@ -35,7 +35,7 @@ class IosBuildTests(unittest.TestCase):
         report = {"status": "passed", "verified": True, "exit_code": 0, "guest_main_result": 1,
                   "guest_sha256": PINNED_SHA256,
                   "checks": {key: True for key in ("libnx_initialized", "original_main_entered",
-                      "original_main_returned", "host_returned_normally", "startup_trace_ordered", "no_crash_reported")}}
+                      "original_main_finished", "host_returned_normally", "startup_trace_ordered", "no_crash_reported")}}
         self.assertTrue(guest_startup_result(report))
         for changed in (dict(report, guest_main_result=None), dict(report, guest_main_result=True), dict(report, exit_code=-11),
                         dict(report, checks={}), dict(report, verified=False), dict(report, status="failed")):
