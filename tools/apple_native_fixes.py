@@ -77,11 +77,12 @@ def translator_source(text):
 def renderer_source(text):
     text = replace_once(text, '#include "native_geometry_shaders.h"',
                         '#include "native_geometry_shaders.h"\n#include "PrototypePrimitiveIndices.h"')
-    text = replace_once(text, 'namespace p2::native {',
+    text = replace_once(text, 'namespace p2::native {\nnamespace shaders {',
         '''REXCVAR_DEFINE_UINT32(proto_apple_debug_raster, 0, "Prototype",
                        "Diagnostic only: bit 0 bypasses depth/stencil, bit 1 bypasses culling");
 
-namespace p2::native {''')
+namespace p2::native {
+namespace shaders {''')
     text = replace_once(text, '  key.layout = (uint64_t(st.counts[0]) << 48)',
         '''  if (REXCVAR_GET(proto_apple_debug_raster) & 1u) {
     key.depth_test = key.depth_write = key.stencil_test = 0;
