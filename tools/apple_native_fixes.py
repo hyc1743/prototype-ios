@@ -93,6 +93,18 @@ def renderer_source(text):
                         '#include "native_geometry_shaders.h"\n#include "PrototypePrimitiveIndices.h"')
     text = replace_once(text, '  water_dump_enabled = REXCVAR_GET(p2_native_water_dump);',
         '  water_dump_enabled = REXCVAR_GET(p2_native_water_dump) || std::getenv("PROTOTYPE_NATIVE_DUMP");')
+    text = replace_once(text,
+        '  if (ps_hash == UINT64_C(0x3E0AB1A6A7CD8CFB) && !post_dumped_edge) {',
+        '''  if (capture_all && (ps_hash == UINT64_C(0x7FFB2EDAC403E49B) ||
+                      ps_hash == UINT64_C(0x45763A31BB3B49B4) ||
+                      ps_hash == UINT64_C(0xFEECC8EB051119C6))) {
+    REXLOG_INFO("[native] APPLEPOST PS {:016X} VS{} PS{} |{}{}{}{}", ps_hash,
+                ConstantsText(0, 8), ConstantsText(256, 16),
+                FetchText(0), FetchText(1), FetchText(2), FetchText(3));
+    for (uint32_t index = 0; index < 4; ++index)
+      dump_fetch(index, fmt::format("post_{:016X}", ps_hash).c_str());
+  }
+  if (ps_hash == UINT64_C(0x3E0AB1A6A7CD8CFB) && !post_dumped_edge) {''')
     text = replace_once(text, 'namespace p2::native {\nnamespace shaders {',
         '''static std::atomic<uint64_t> prototype_probe_max_draws{0};
 extern "C" uint64_t PrototypeNativeProbeMaxDraws() {
