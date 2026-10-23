@@ -243,6 +243,9 @@ static int SDLCALL PrototypeSDLMain(int argc, char **argv) {
             }
             SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "uikit", SDL_HINT_OVERRIDE);
             SDL_SetHint(SDL_HINT_APP_NAME, "Prototype");
+            // GameController input is merged with touch by the virtual pad.
+            // Keep one logical player instead of also opening each pad in SDL.
+            SDL_SetHint(SDL_HINT_JOYSTICK_MFI, "0");
             SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
             if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
                 NSString *message = [NSString stringWithFormat:@"SDL 初始化失败：%s", SDL_GetError()];

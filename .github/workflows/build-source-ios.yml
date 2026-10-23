@@ -25,6 +25,12 @@ jobs:
     needs: test
     runs-on: macos-26
     timeout-minutes: 120
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.tools/ccache-ios
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPRESS: 'true'
+      CCACHE_MAXSIZE: 3G
+      CCACHE_SLOPPINESS: pch_defines,time_macros
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -34,8 +40,17 @@ jobs:
         run: |
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
-          brew install cmake ninja
+          brew install cmake ninja ccache
           python -m pip install -r requirements.txt
+      - name: Restore fixed source dependencies and compiler cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            .tools/source-port/git-cache
+            .tools/ccache-ios
+          key: prototype-source-ios-v1-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}
+          restore-keys: |
+            prototype-source-ios-v1-${{ runner.arch }}-
       - name: Authenticate original translated C++ input
         env:
           PROTOTYPE_CODEGEN_KEY: ${{ secrets.PROTOTYPE_CODEGEN_KEY }}
@@ -72,3 +87,14 @@ jobs:
         if: always()
         run: |
           python -c 'import os,pathlib,shutil; p=pathlib.Path(os.environ["RUNNER_TEMP"])/"prototype-codegen"; shutil.rmtree(p,ignore_errors=True)'
+      - name: Record compiler cache statistics
+        if: always()
+        run: ccache --show-stats
+      - name: Preserve dependency and compilation progress
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .tools/source-port/git-cache
+            .tools/ccache-ios
+          key: prototype-source-ios-v1-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}

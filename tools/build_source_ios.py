@@ -12,10 +12,12 @@ import shutil
 import subprocess
 import struct
 import sys
+import urllib.request
 
 from build_ios import macho_sections, moltenvk, package, run, sha256
 from ci_codegen import PINNED_ZIP_SHA256, XEX_SHA256, safe_path
 from prepare_source_port import SDK_COMMIT, PROTOTYPE_COMMIT
+from native_controls import stage_controls, SOURCE_COMMIT as CONTROLS_COMMIT
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -108,16 +110,33 @@ def build(args):
     import_report = json.loads((logs / "resource-import.json").read_text(encoding="utf8"))
     if import_report.get("verified") is not True:
         raise ValueError("Native resource importer did not pass")
-    extra = ";".join(str(ROOT / p) for p in ["ios/import/PrototypeImportViewController.m", "ios/import/PrototypeResourceInstaller.m"])
+    controls_source = "https://raw.githubusercontent.com/seedds/nxnative/" + CONTROLS_COMMIT + "/dm/ios/Sources/DmGamepad.m"
+    with urllib.request.urlopen(controls_source, timeout=60) as source:
+        controls_raw = source.read(1024 * 1024)
+    controls = output / "controls"
+    controls_report = stage_controls(controls_raw, controls)
+    license_url = "https://raw.githubusercontent.com/seedds/nxnative/" + CONTROLS_COMMIT + "/LICENSE"
+    with urllib.request.urlopen(license_url, timeout=60) as source:
+        controls_license = source.read(64 * 1024)
+    controls_license_sha = hashlib.sha256(controls_license).hexdigest()
+    if controls_license_sha != "5811600bb8fc4522d3310e8e0e637a1bb14b7c64412f8cfc6234872eb53129b9":
+        raise ValueError("Pinned nxnative controller license differs")
+    controls_report["license_sha256"] = controls_license_sha
+    (logs / "controls.json").write_text(json.dumps(controls_report, indent=2) + "\n", encoding="utf8")
+    extra = ";".join([str(ROOT / p) for p in ["ios/import/PrototypeImportViewController.m", "ios/import/PrototypeResourceInstaller.m"]]
+                     + [str(controls / p) for p in ["DmGamepad.m", "PrototypeNativePad.m"]])
     command = ["cmake", "-S", stage, "-B", build_dir, "-G", "Ninja",
                "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_SYSTEM_NAME=iOS", "-DCMAKE_OSX_SYSROOT=iphoneos",
                "-DCMAKE_OSX_ARCHITECTURES=arm64", "-DCMAKE_OSX_DEPLOYMENT_TARGET=26.0",
                "-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY", "-DCMAKE_C_COMPILER=clang",
                "-DCMAKE_CXX_COMPILER=clang++", "-DMOLTENVK_ROOT=" + str(mvk),
                "-DPROTOTYPE_APPLE_ENTRY_SOURCE=" + str(ROOT / "ios/source-port/PrototypeSDLMain.mm"),
-               "-DPROTOTYPE_EXTRA_SOURCES=" + extra, "-DPROTOTYPE_EXTRA_INCLUDE_DIRS=" + str(ROOT / "ios/import"),
+               "-DPROTOTYPE_EXTRA_SOURCES=" + extra, "-DPROTOTYPE_EXTRA_INCLUDE_DIRS=" + str(ROOT / "ios/import") + ";" + str(controls),
                "-DPROTOTYPE_INFO_PLIST=" + str(ROOT / "ios/source-port/Info.plist.in"),
                "-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO"]
+    if shutil.which("ccache"):
+        for language in ("C", "CXX", "OBJC", "OBJCXX"):
+            command.append("-DCMAKE_" + language + "_COMPILER_LAUNCHER=ccache")
     run(command, env=env, log=logs / "configure.log")
     run(["cmake", "--build", build_dir, "--target", "prototype", "--parallel", "3"], env=env, log=logs / "compile.log")
     applications = [p for p in stage.rglob("Prototype.app") if p.is_dir()]
@@ -133,6 +152,7 @@ def build(args):
     notices.mkdir()
     shutil.copyfile(stage / "Prototype-LICENSE", notices / "Prototype-GPL-3.0.txt")
     shutil.copyfile(mvk_license, notices / "MoltenVK-Apache-2.0.txt")
+    (notices / "nxnative-controller-MIT.txt").write_bytes(controls_license)
     for source in [ROOT / "THIRD_PARTY.md", ROOT / "LICENSE"]:
         shutil.copyfile(source, notices / source.name)
     # Keep all dependency license/notice texts in the distributed app.
@@ -152,7 +172,7 @@ def build(args):
               "source_xex_sha256": XEX_SHA256, "codegen_zip_sha256": PINNED_ZIP_SHA256,
               "sdk_commit": SDK_COMMIT, "prototype_commit": PROTOTYPE_COMMIT,
               "moltenvk_license_included": True,
-              "resource_import_smoke": import_report, "requires_jit": False,
+              "resource_import_smoke": import_report, "native_controls": controls_report, "requires_jit": False,
               "ipa_sha256": sha256(ipa), "ipa_bytes": ipa.stat().st_size, **native}
     (output / "build-report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf8")
     print(json.dumps(report, indent=2))

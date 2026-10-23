@@ -2,16 +2,176 @@ import io
 import ast
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import sys
 import tarfile
 import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-from prepare_source_port import apple_fiber_source, extract_archive, generated_sources, replace_once, source_sha
+from prepare_source_port import apple_fiber_source, apple_memory_source, extract_archive, generated_sources, replace_once, source_sha
+
+
+MEMORY_QUERY_FIXTURE = '''#include <cstddef>
+#include <cstdint>
+#if REX_PLATFORM_MAC
+#include <mach/mach.h>
+#include <mach/mach_vm.h>
+#include <mach/vm_region.h>
+#endif
+enum class PageAccess { kExecuteReadWrite, kExecuteReadOnly, kReadWrite, kReadOnly, kNoAccess };
+bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
+  mach_vm_address_t address = reinterpret_cast<mach_vm_address_t>(base_address);
+  mach_vm_size_t region_size = 0;
+  vm_region_basic_info_data_64_t info;
+  mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT_64;
+  mach_port_t object_name;
+
+  kern_return_t kr =
+      mach_vm_region(mach_task_self(), &address, &region_size, VM_REGION_BASIC_INFO_64,
+                     reinterpret_cast<vm_region_info_t>(&info), &info_count, &object_name);
+  if (kr != KERN_SUCCESS) {
+    return false;
+  }
+  if (address > reinterpret_cast<mach_vm_address_t>(base_address)) {
+    return false;
+  }
+
+  length = static_cast<size_t>((address + region_size) -
+                               reinterpret_cast<mach_vm_address_t>(base_address));
+  if ((info.protection & (VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE)) ==
+      (VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE)) {
+    access_out = PageAccess::kExecuteReadWrite;
+  } else if ((info.protection & (VM_PROT_READ | VM_PROT_EXECUTE)) ==
+             (VM_PROT_READ | VM_PROT_EXECUTE)) {
+    access_out = PageAccess::kExecuteReadOnly;
+  } else if ((info.protection & (VM_PROT_READ | VM_PROT_WRITE)) == (VM_PROT_READ | VM_PROT_WRITE)) {
+    access_out = PageAccess::kReadWrite;
+  } else if (info.protection & VM_PROT_READ) {
+    access_out = PageAccess::kReadOnly;
+  } else {
+    access_out = PageAccess::kNoAccess;
+  }
+  return true;
+}
+'''
 
 
 class SourcePreparationTests(unittest.TestCase):
+    def test_ios_region_overlay_preserves_permission_decoder_and_refuses_changed_anchors(self):
+        patched = apple_memory_source(MEMORY_QUERY_FIXTURE)
+        permissions = MEMORY_QUERY_FIXTURE[MEMORY_QUERY_FIXTURE.index("  if ((info.protection"):]
+        self.assertEqual(patched[patched.index("  if ((info.protection"):], permissions)
+        self.assertIn("vm_region_64(mach_task_self(), &address, &region_size, VM_REGION_BASIC_INFO_64", patched)
+        self.assertIn("using RegionAddress = vm_address_t;", patched)
+        self.assertIn("using RegionSize = vm_size_t;", patched)
+        self.assertIn("using RegionAddress = mach_vm_address_t;", patched)
+        self.assertLess(patched.index("mach_port_deallocate("), patched.index("if (kr != KERN_SUCCESS)"))
+        for changed in (MEMORY_QUERY_FIXTURE.replace("#include <mach/mach_vm.h>", ""),
+                        MEMORY_QUERY_FIXTURE.replace("mach_port_t object_name;", "mach_port_t different;")):
+            with self.assertRaises(ValueError):
+                apple_memory_source(changed)
+
+    @unittest.skipUnless(shutil.which("clang++") or shutil.which("g++"), "native C++ compiler unavailable; target iOS compile is a separate CI gate")
+    def test_public_and_desktop_region_apis_keep_bounds_permissions_and_port_lifetime(self):
+        compiler = shutil.which("clang++") or shutil.which("g++")
+        public_header = '''#pragma once
+#include <cstdint>
+#include <cassert>
+using vm_map_read_t = unsigned;
+using vm_address_t = uintptr_t;
+using vm_size_t = uintptr_t;
+using mach_msg_type_number_t = unsigned;
+using mach_port_t = unsigned;
+using kern_return_t = int;
+using vm_region_info_t = int*;
+struct vm_region_basic_info_data_64_t { int protection; };
+constexpr int VM_REGION_BASIC_INFO_COUNT_64=9, VM_REGION_BASIC_INFO_64=9;
+constexpr int VM_PROT_READ=1, VM_PROT_WRITE=2, VM_PROT_EXECUTE=4, KERN_SUCCESS=0;
+constexpr mach_port_t MACH_PORT_NULL=0;
+uintptr_t next_address=0;
+uintptr_t next_size=0;
+int next_protection=0, next_result=0, released=0, public_calls=0, desktop_calls=0;
+mach_port_t next_object=77;
+inline mach_port_t mach_task_self() { return 1; }
+inline kern_return_t mach_port_deallocate(mach_port_t task, mach_port_t object) {
+  assert(task==1 && object==77); ++released; return 0;
+}
+inline kern_return_t region_common(vm_map_read_t task, uintptr_t* address, uintptr_t* size,
+  int flavor, vm_region_info_t info, mach_msg_type_number_t* count, mach_port_t* object) {
+  assert(task==1 && flavor==VM_REGION_BASIC_INFO_64 && *count==VM_REGION_BASIC_INFO_COUNT_64);
+  *address=next_address; *size=next_size; *info=next_protection; *object=next_object; return next_result;
+}
+inline kern_return_t vm_region_64(vm_map_read_t task, vm_address_t* address, vm_size_t* size,
+  int flavor, vm_region_info_t info, mach_msg_type_number_t* count, mach_port_t* object) {
+  ++public_calls; return region_common(task,address,size,flavor,info,count,object);
+}
+'''
+        desktop_header = '''#pragma once
+#if REX_PLATFORM_IOS
+#error mach_vm.h unsupported in the iOS API fixture
+#endif
+using mach_vm_address_t = uintptr_t;
+using mach_vm_size_t = uintptr_t;
+inline kern_return_t mach_vm_region(vm_map_read_t task, mach_vm_address_t* address, mach_vm_size_t* size,
+  int flavor, vm_region_info_t info, mach_msg_type_number_t* count, mach_port_t* object) {
+  ++desktop_calls; return region_common(task,address,size,flavor,info,count,object);
+}
+'''
+        driver = '''
+int main() {
+  PageAccess access=PageAccess::kNoAccess;
+  size_t length=999;
+  const int protections[]={0,1,3,5,7};
+  const PageAccess expected[]={PageAccess::kNoAccess,PageAccess::kReadOnly,PageAccess::kReadWrite,
+    PageAccess::kExecuteReadOnly,PageAccess::kExecuteReadWrite};
+  next_address=0x1000; next_size=0x4000;
+  for(int i=0;i<5;++i) {
+    next_protection=protections[i];
+    assert(QueryProtect(reinterpret_cast<void*>(uintptr_t(0x1800)),length,access));
+    assert(length==0x3800 && access==expected[i]);
+  }
+  assert(released==5);
+  next_address=0x2000;
+  assert(!QueryProtect(reinterpret_cast<void*>(uintptr_t(0x1800)),length,access));
+  next_address=0x1000; next_size=0x800;
+  assert(!QueryProtect(reinterpret_cast<void*>(uintptr_t(0x1800)),length,access));
+  next_size=0;
+  assert(!QueryProtect(reinterpret_cast<void*>(uintptr_t(0x1000)),length,access));
+  next_address=UINTPTR_MAX-0x3fff; next_size=0x4000;
+  assert(QueryProtect(reinterpret_cast<void*>(UINTPTR_MAX-3),length,access));
+  assert(length==4);
+  next_result=5;
+  assert(!QueryProtect(reinterpret_cast<void*>(uintptr_t(0x1800)),length,access));
+  assert(released==10);
+  next_result=0; next_address=0x1000; next_size=0x4000; next_object=MACH_PORT_NULL;
+  assert(QueryProtect(reinterpret_cast<void*>(uintptr_t(0x1800)),length,access));
+  assert(released==10);
+#if REX_PLATFORM_IOS
+  assert(public_calls==11 && desktop_calls==0);
+#else
+  assert(desktop_calls==11 && public_calls==0);
+#endif
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            include = root / "mach"
+            include.mkdir()
+            (include / "mach.h").write_text(public_header)
+            (include / "mach_vm.h").write_text(desktop_header)
+            (include / "vm_region.h").write_text("#pragma once\n")
+            source = root / "region.cpp"
+            source.write_text(apple_memory_source(MEMORY_QUERY_FIXTURE) + driver)
+            for ios in (0, 1):
+                with self.subTest(ios=ios):
+                    executable = root / ("region-" + str(ios) + (".exe" if sys.platform == "win32" else ""))
+                    subprocess.run([compiler, "-std=c++17", "-I", str(root), "-DREX_PLATFORM_MAC=1",
+                                    "-DREX_PLATFORM_IOS=" + str(ios), str(source), "-o", str(executable)],
+                                   check=True, capture_output=True)
+                    subprocess.run([str(executable)], check=True, capture_output=True)
+
     def test_fiber_macho_adaptation_keeps_assembly_statement_complete(self):
         source = ('#if REX_PLATFORM_SWITCH\n__asm__(\n'
                   '    ".global rex_fiber_swap\\n"\n'

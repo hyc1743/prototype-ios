@@ -17,7 +17,8 @@ GitHub uploads 主机，并拒绝跳转。
 公开源码由 `public-files.json` 的精确文件清单决定。每项须为仓库中的相对
 POSIX 文件路径，不接受目录、重复路径、通配符、符号链接或路径穿越。
 审阅命令输出每个文件的大小与 SHA-256。唯一二进制例外是经过格式和固定
-原始 NRO 摘要验证的 `ci-inputs/guest.enc`。
+原始 NRO 摘要验证的 `ci-inputs/guest.enc`，以及经过固定 ZIP 摘要验证的
+`ci-inputs/codegen.enc`。其余二进制均拒绝进入源码清单。
 
 ```powershell
 python tools/github_cloud.py review --manifest public-files.json
@@ -70,6 +71,31 @@ python tools/ci_guest.py open ci-inputs/guest.enc "$RUNNER_TEMP/guest.nro"
 
 解密必须通过认证、固定 SHA-256 和 NRO0 校验；错误密钥或篡改内容会终止构建。
 加密输入、构建脚本或编译成功本身都不能证明 iOS 游戏运行成功。
+
+## Apple 原生源码构建
+
+`build-source-ios.yml` 重新编译原始 PPC 翻译、原生渲染器和 ReXGlue SDK。
+使用 Apple 的 16 KiB 页支持，避免套用 Switch 的 4 KiB 物理内存镜像。
+原 NRO 的 `build-ios.yml` 保留为独立启动诊断。
+
+源码生成输入来自本地 `game/default.xex`：SHA-256
+`fda520ae3721eaddede1fd773af3ad2f6099a5ae2981849fb07ed4c7a8b53afe`。
+官方 ReXGlue v0.10.0 已生成 157 个 C++ 单元、53,211 个翻译函数。
+316 个必要源码／头文件通过确定性 ZIP 和 AES-256-GCM 认证加密后存于
+`ci-inputs/codegen.enc`；明文源码及 XEX 不进入 Git 历史。
+对应 Secret 为 `PROTOTYPE_CODEGEN_KEY`，密钥位于本地
+`.tools/private/prototype-codegen.key`。
+
+```powershell
+python tools/github_cloud.py --credential-dir ../super-mario-odyssey-ios set-secret hyc1743/prototype-ios PROTOTYPE_CODEGEN_KEY --value-file .tools/private/prototype-codegen.key
+python tools/github_cloud.py --credential-dir ../super-mario-odyssey-ios dispatch hyc1743/prototype-ios build-source-ios.yml
+python tools/github_cloud.py --credential-dir ../super-mario-odyssey-ios runs hyc1743/prototype-ios build-source-ios.yml
+```
+
+CI 验证解密认证、固定 ZIP 摘要和每个文件摘要，准备固定的原项目、SDK 与
+17 个依赖提交，再使用 iOS SDK 编译。输出检查要求全部 53,211 个翻译函数
+存在于实际 ARM64 可执行文件、无未打包动态库，并核对资源清单和默认配置。
+准备成功或编译成功不会自动建立游戏运行／画面／存档验证结论。
 
 ## IPA 与资源 Release
 

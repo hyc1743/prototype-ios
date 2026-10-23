@@ -27,7 +27,7 @@ static BOOL ImportWindowActive(UIWindow *window) {
     self.view.backgroundColor = UIColor.systemBackgroundColor;
     UILabel *title = [UILabel new];
     title.text = @"Prototype 资源准备";
-    title.font = [UIFont boldSystemFontOfSize:26];
+    title.font = [UIFont boldSystemFontOfSize:24];
     title.textAlignment = NSTextAlignmentCenter;
     UILabel *help = [UILabel new];
     NSURL *manifestURL = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"dm/PrototypeData.manifest.json"];
@@ -37,24 +37,44 @@ static BOOL ImportWindowActive(UIWindow *window) {
     double storageGB = [manifest[@"total_bytes"] doubleValue] / 1000000000.0;
     help.text = [NSString stringWithFormat:@"将 %lu 个 PrototypeData 分卷复制到“文件 → 我的 iPhone → Prototype”，或其中的 ResourcePacks 文件夹。\n自动校验并解包后进入游戏。请保持应用在前台，并为解包预留至少 %.1f GB 空间。", (unsigned long)partCount, ceil(storageGB * 10.0) / 10.0];
     help.numberOfLines = 0;
+    help.font = [UIFont systemFontOfSize:15];
     help.textAlignment = NSTextAlignmentCenter;
     _status = [UILabel new];
     _status.numberOfLines = 0;
+    _status.font = [UIFont systemFontOfSize:14];
     _status.textAlignment = NSTextAlignmentCenter;
+    UIScrollView *statusScroll = [UIScrollView new];
+    statusScroll.alwaysBounceVertical = YES;
+    _status.translatesAutoresizingMaskIntoConstraints = NO;
+    [statusScroll addSubview:_status];
+    NSLayoutConstraint *statusHeight = [statusScroll.heightAnchor constraintEqualToConstant:88];
+    statusHeight.priority = UILayoutPriorityDefaultHigh;
+    [NSLayoutConstraint activateConstraints:@[
+        [_status.topAnchor constraintEqualToAnchor:statusScroll.contentLayoutGuide.topAnchor],
+        [_status.bottomAnchor constraintEqualToAnchor:statusScroll.contentLayoutGuide.bottomAnchor],
+        [_status.leadingAnchor constraintEqualToAnchor:statusScroll.contentLayoutGuide.leadingAnchor],
+        [_status.trailingAnchor constraintEqualToAnchor:statusScroll.contentLayoutGuide.trailingAnchor],
+        [_status.widthAnchor constraintEqualToAnchor:statusScroll.frameLayoutGuide.widthAnchor],
+        [statusScroll.heightAnchor constraintGreaterThanOrEqualToConstant:32],
+        [statusScroll.heightAnchor constraintLessThanOrEqualToConstant:120],
+        statusHeight
+    ]];
     _progress = [UIProgressView new];
     _retry = [UIButton buttonWithType:UIButtonTypeSystem];
     [_retry setTitle:@"重新检查 / 继续解包" forState:UIControlStateNormal];
     [_retry addTarget:self action:@selector(startImport) forControlEvents:UIControlEventTouchUpInside];
-    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[title, help, _progress, _status, _retry]];
+    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[title, help, _progress, statusScroll, _retry]];
     stack.axis = UILayoutConstraintAxisVertical;
-    stack.spacing = 18;
+    stack.spacing = 12;
     stack.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:stack];
     NSLayoutConstraint *preferredWidth = [stack.widthAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.widthAnchor multiplier:0.88];
     preferredWidth.priority = UILayoutPriorityDefaultHigh;
     [NSLayoutConstraint activateConstraints:@[
         [stack.centerXAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.centerXAnchor],
-        [stack.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.centerYAnchor],
+        [stack.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.centerYAnchor constant:-16],
+        [stack.topAnchor constraintGreaterThanOrEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:12],
+        [stack.bottomAnchor constraintLessThanOrEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-48],
         [stack.widthAnchor constraintLessThanOrEqualToConstant:680],
         [stack.leadingAnchor constraintGreaterThanOrEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor constant:24],
         [stack.trailingAnchor constraintLessThanOrEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor constant:-24],

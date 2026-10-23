@@ -39,6 +39,7 @@ PATCHED_SDK_INPUTS = {
     "include/rex/thread/fiber.h": "3c865848d8e2a6109ebf0b8d74c61e161fda1f90737a0015c8c9becf4b60db39",
     "src/core/CMakeLists.txt": "c826aca17fa959bd91c102c99722155ab0cda89d93d4d7ceb2c3d4d3ab75274b",
     "src/core/fiber_switch.cpp": "4021a251bb614dacff564f7afb6426c3acc14baabefc9e022060793a662f7b4f",
+    "src/core/memory_posix.cpp": "05d2f6b174dc981b361febb56d6441b0a3b3bd6670411a9569d5606d8e4817b2",
     "src/ui/windowed_app_main_sdl.cpp": "49c1fe205eb4802967896791fe8883c10daad0a7bc0efa5f8e60ec4ecc4aabf7",
 }
 
@@ -223,6 +224,68 @@ def apple_fiber_source(text):
                   lambda match: match.group(1) + '""' + match.group(2), text)
 
 
+def apple_memory_source(text):
+    """Use iPhoneOS's public region API without changing permission decoding."""
+    text = replace_once(text, "#include <mach/mach_vm.h>",
+                        "#if !defined(REX_PLATFORM_IOS) || !REX_PLATFORM_IOS\n#include <mach/mach_vm.h>\n#endif")
+    old = '''  mach_vm_address_t address = reinterpret_cast<mach_vm_address_t>(base_address);
+  mach_vm_size_t region_size = 0;
+  vm_region_basic_info_data_64_t info;
+  mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT_64;
+  mach_port_t object_name;
+
+  kern_return_t kr =
+      mach_vm_region(mach_task_self(), &address, &region_size, VM_REGION_BASIC_INFO_64,
+                     reinterpret_cast<vm_region_info_t>(&info), &info_count, &object_name);
+  if (kr != KERN_SUCCESS) {
+    return false;
+  }
+  if (address > reinterpret_cast<mach_vm_address_t>(base_address)) {
+    return false;
+  }
+
+  length = static_cast<size_t>((address + region_size) -
+                               reinterpret_cast<mach_vm_address_t>(base_address));'''
+    new = '''#if defined(REX_PLATFORM_IOS) && REX_PLATFORM_IOS
+  using RegionAddress = vm_address_t;
+  using RegionSize = vm_size_t;
+#else
+  using RegionAddress = mach_vm_address_t;
+  using RegionSize = mach_vm_size_t;
+#endif
+  static_assert(sizeof(RegionAddress) == sizeof(uintptr_t), "Mach region address must preserve host pointers");
+  const RegionAddress requested = reinterpret_cast<RegionAddress>(base_address);
+  RegionAddress address = requested;
+  RegionSize region_size = 0;
+  vm_region_basic_info_data_64_t info;
+  mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT_64;
+  mach_port_t object_name = MACH_PORT_NULL;
+
+#if defined(REX_PLATFORM_IOS) && REX_PLATFORM_IOS
+  kern_return_t kr =
+      vm_region_64(mach_task_self(), &address, &region_size, VM_REGION_BASIC_INFO_64,
+                   reinterpret_cast<vm_region_info_t>(&info), &info_count, &object_name);
+#else
+  kern_return_t kr =
+      mach_vm_region(mach_task_self(), &address, &region_size, VM_REGION_BASIC_INFO_64,
+                     reinterpret_cast<vm_region_info_t>(&info), &info_count, &object_name);
+#endif
+  if (object_name != MACH_PORT_NULL) {
+    (void)mach_port_deallocate(mach_task_self(), object_name);
+  }
+  if (kr != KERN_SUCCESS) {
+    return false;
+  }
+  // A region query may advance to the next mapping when the input is a hole.
+  // Subtraction after checking the lower bound avoids address+size overflow.
+  if (address > requested || requested - address >= region_size) {
+    return false;
+  }
+
+  length = static_cast<size_t>(region_size - (requested - address));'''
+    return replace_once(text, old, new)
+
+
 def overlay_sdk(sdk, diff_root):
     """Apply exact reviewed source edits and keep every before/after hash/diff."""
     records = []
@@ -297,6 +360,7 @@ endif()
         return replace_once(text, "  return true;\n}\n\nvoid SpirvToolsContext::Shutdown()",
                             "  return true;\n#endif\n}\n\nvoid SpirvToolsContext::Shutdown()")
     write("src/ui/vulkan/spirv_tools_context.cpp", spirv)
+    write("src/core/memory_posix.cpp", apple_memory_source)
 
     write("include/rex/thread/fiber.h", lambda text: text.replace(
           "#if REX_PLATFORM_SWITCH\n", "#if REX_PLATFORM_SWITCH || defined(REX_PLATFORM_IOS)\n").replace(

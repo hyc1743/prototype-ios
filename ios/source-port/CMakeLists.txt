@@ -114,7 +114,8 @@ target_link_options(prototype PRIVATE
 set_property(TARGET prototype APPEND PROPERTY LINK_DEPENDS
     "$<TARGET_FILE:rexruntime>" "$<TARGET_FILE:rexgpu-xenos>")
 if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
-    target_link_libraries(prototype PRIVATE "-framework UIKit" "-framework AVFoundation" "-framework GameController")
+    target_link_libraries(prototype PRIVATE "-framework UIKit" "-framework AVFoundation" "-framework GameController"
+        "-framework CoreMotion" "-framework CoreText")
 else()
     target_link_libraries(prototype PRIVATE "-framework AppKit" "-framework IOKit" "-framework CoreGraphics")
 endif()
