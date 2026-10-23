@@ -1,0 +1,71 @@
+name: Build Prototype iOS IPA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prototype-ios-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -v
+
+  ios:
+    needs: test
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          brew install xcodegen
+          python -m pip install -r requirements.txt
+      - name: Authenticate the exact supplied guest executable
+        env:
+          PROTOTYPE_GUEST_KEY: ${{ secrets.PROTOTYPE_GUEST_KEY }}
+        run: python tools/ci_guest.py open ci-inputs/guest.enc "$RUNNER_TEMP/prototype.nro"
+      - name: Fetch pinned native host source
+        run: |
+          git init references/nxnative
+          git -C references/nxnative fetch --depth 1 https://github.com/seedds/nxnative.git 677345b0933f5f8754aeec3125d14df32683ca97
+          git -C references/nxnative checkout --detach FETCH_HEAD
+      - name: Verify importer, run original guest startup, compile and inspect IPA
+        run: python tools/build_ios.py --nro "$RUNNER_TEMP/prototype.nro" --output out/prototype-ios
+      - name: Upload IPA and build evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: Prototype-development-IPA
+          path: |
+            out/prototype-ios/Prototype-development.ipa
+            out/prototype-ios/build-report.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Prototype-build-logs
+          path: |
+            out/prototype-ios/logs/*.log
+            out/prototype-ios/logs/*.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Remove decrypted build input
+        if: always()
+        run: rm -f "$RUNNER_TEMP/prototype.nro"

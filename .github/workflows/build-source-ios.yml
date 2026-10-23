@@ -1,0 +1,103 @@
+name: Build Prototype from original translated source
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prototype-native-source-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: sudo apt-get update && sudo apt-get install -y glslang-tools
+      - run: python -m unittest discover -s tests -v
+
+  source-ios:
+    needs: test
+    runs-on: macos-26
+    timeout-minutes: 120
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.tools/ccache-ios
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPRESS: 'true'
+      CCACHE_MAXSIZE: 3G
+      CCACHE_SLOPPINESS: pch_defines,time_macros
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare Apple build tools
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          brew install cmake ninja ccache
+          python -m pip install -r requirements.txt
+      - name: Restore fixed source dependencies and compiler cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            .tools/source-port/git-cache
+            .tools/ccache-ios
+          key: prototype-source-ios-v1-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}
+          restore-keys: |
+            prototype-source-ios-v1-${{ runner.arch }}-
+      - name: Authenticate original translated C++ input
+        env:
+          PROTOTYPE_CODEGEN_KEY: ${{ secrets.PROTOTYPE_CODEGEN_KEY }}
+        run: python tools/ci_codegen.py open ci-inputs/codegen.enc "$RUNNER_TEMP/prototype-codegen"
+      - name: Fetch original port source at the reviewed revision
+        run: |
+          git init references/prototype-switch
+          git -C references/prototype-switch fetch --depth 1 https://github.com/fungalspores/prototype-switch.git 292de4b382dbe335011d8b4f56ec4212df5ef74c
+          git -C references/prototype-switch checkout --detach FETCH_HEAD
+      - name: Compile native ARM64 guest, original renderer, SDK and UIKit importer
+        run: python tools/build_source_ios.py --generated "$RUNNER_TEMP/prototype-codegen" --output out/source-ios
+      - name: Upload compiled source-native IPA and evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: Prototype-native-development-IPA
+          path: |
+            out/source-ios/Prototype-native-development.ipa
+            out/source-ios/build-report.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload native build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Prototype-native-build-logs
+          path: |
+            out/source-ios/logs/*.log
+            out/source-ios/logs/*.json
+            out/source-ios/staged/logs/*.log
+            out/source-ios/staged/source-port-report.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Remove decrypted codegen input
+        if: always()
+        run: |
+          python -c 'import os,pathlib,shutil; p=pathlib.Path(os.environ["RUNNER_TEMP"])/"prototype-codegen"; shutil.rmtree(p,ignore_errors=True)'
+      - name: Record compiler cache statistics
+        if: always()
+        run: ccache --show-stats
+      - name: Preserve dependency and compilation progress
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .tools/source-port/git-cache
+            .tools/ccache-ios
+          key: prototype-source-ios-v1-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}

@@ -1,0 +1,14 @@
+# Original inputs and credentials remain local.
+*.keys
+*.nsp
+*.nro
+*.nso
+switch/
+.tools/
+references/
+work/
+out/
+artifacts/
+__pycache__/
+*.pyc
+.DS_Store
