@@ -7,10 +7,23 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-from mac_source_probe import download_parts, observations
+from mac_source_probe import download_parts, observations, runtime_status
 
 
 class SourceProbeTests(unittest.TestCase):
+    def test_controlled_exit_cannot_hide_device_loss_or_zero_audio_samples(self):
+        report = observations("[audio] SDL in 10 s: 1876 frames with data\n"
+                              "[audio] output peak=0 active_samples=0 nonfinite=0\n"
+                              "[mvk-error] VK_TIMEOUT: Lost VkDevice after command submission\n")
+        self.assertFalse(report["audio_nonzero_output_observed"])
+        self.assertEqual(runtime_status(report, True, 0), "runtime_failed")
+        self.assertEqual(runtime_status(observations("[native] vkQueueSubmit failed"), True, 0), "runtime_failed")
+        report = observations("[audio] output peak=0.24 active_samples=100 nonfinite=0\n")
+        self.assertTrue(report["audio_nonzero_output_observed"])
+        self.assertEqual(runtime_status(report, True, 0), "observation_finished")
+        report["spirv_validation"] = {"invalid": 1}
+        self.assertEqual(runtime_status(report, True, 0), "runtime_failed")
+
     def test_resource_download_validates_size_and_hash_before_publishing(self):
         data = b"verified resource fixture"
         descriptor = {"name": "PrototypeData.part001.ptdata", "size": len(data),

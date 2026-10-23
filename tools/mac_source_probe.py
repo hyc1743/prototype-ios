@@ -58,7 +58,19 @@ def observations(text):
         "sdk_controller_open_observed": "SDL OnControllerDeviceAdded: connection order" in text,
         "audio_data_frames_reported": sum(int(n) for n in re.findall(r"\[audio\] SDL in 10 s: (\d+) frames with data", text)),
         "pipeline_failure_lines": [line for line in text.splitlines() if "Pipeline creation failed" in line][:20],
+        "device_failure_lines": [line for line in text.splitlines()
+            if any(marker in line for marker in ("Lost VkDevice", "VK_ERROR_DEVICE_LOST",
+                "vkQueueSubmit failed", "unhandled host fault"))][:20],
+        "audio_nonzero_output_observed": any(float(value) > 0.00001 for value in
+            re.findall(r"\[audio\] output peak=([0-9.eE+-]+)", text)),
     }
+
+
+def runtime_status(report, controlled_termination, exit_code):
+    if (report.get("device_failure_lines") or report.get("pipeline_failure_lines") or
+            report.get("spirv_validation", {}).get("invalid", 0)):
+        return "runtime_failed"
+    return "observation_finished" if controlled_termination or exit_code == 0 else "process_failed"
 
 
 def stop(process):
@@ -86,6 +98,7 @@ def probe(args):
               "status": "failed", "ios_device_execution": False,
               "runtime_verified": False, "playable_verified": False,
               "scope": "Source-native macOS diagnostic with verified resources and ordinary SDL input"}
+    report["renderer_requested"] = "xenos"
     try:
         generated = args.generated.resolve()
         verify_generated(generated)
@@ -131,7 +144,7 @@ def probe(args):
                      "--cache_root=" + str(cache), "--log_file=" + str(evidence / "engine.log"),
                      "--log_level=info", "--log_flush_level=info", "--p2_frame_diagnostics=true",
                      "--p2_native_occlusion_queries=false", "--audio_dump_output_s=15",
-                     "--audio_dump_output_from_s=10"]
+                     "--audio_dump_output_from_s=10", "--p2_renderer=xenos"]
         shots, process, deadline = [], None, False
         started = time.monotonic()
         with (evidence / "run.log").open("w", encoding="utf8") as output:
@@ -180,7 +193,7 @@ def probe(args):
         audio_dump = build / "audio_output.wav"
         if audio_dump.is_file():
             shutil.copyfile(audio_dump, evidence / "audio_output.wav")
-        report["status"] = "observation_finished" if deadline or process.returncode == 0 else "process_failed"
+        report["status"] = runtime_status(report, deadline, process.returncode)
         return report
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         report["error"] = str(error)
