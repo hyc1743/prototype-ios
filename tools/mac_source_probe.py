@@ -124,9 +124,13 @@ def probe(args):
         config = out / "private/prototype.toml"
         shutil.copyfile(ROOT / "ios/config/prototype.toml", config)
         env["PROTOTYPE_CONFIG_PATH"] = str(config)
+        shader_dump = out / "private/spirv"
+        shader_dump.mkdir()
+        env["PROTOTYPE_SPIRV_DUMP"] = str(shader_dump)
         arguments = [str(executable), "--game_data_root=" + str(game), "--user_data_root=" + str(saves),
                      "--cache_root=" + str(cache), "--log_file=" + str(evidence / "engine.log"),
-                     "--log_level=info", "--log_flush_level=info", "--p2_frame_diagnostics=true"]
+                     "--log_level=info", "--log_flush_level=info", "--p2_frame_diagnostics=true",
+                     "--p2_native_occlusion_queries=false"]
         shots, process, deadline = [], None, False
         started = time.monotonic()
         with (evidence / "run.log").open("w", encoding="utf8") as output:
@@ -134,6 +138,7 @@ def probe(args):
                 process = subprocess.Popen(arguments, env=env, cwd=out / "private", stdout=output,
                                            stderr=subprocess.STDOUT, start_new_session=True)
                 next_shot = 20
+                next_sample = 60
                 while process.poll() is None:
                     elapsed = time.monotonic() - started
                     if elapsed >= args.seconds:
@@ -146,6 +151,11 @@ def probe(args):
                         if captured.returncode == 0 and shot.is_file():
                             shots.append(shot.name)
                         next_shot += 20
+                    if elapsed >= next_sample:
+                        subprocess.run(["/usr/bin/sample", str(process.pid), "2", "-file",
+                                        str(evidence / f"threads-{next_sample:03d}.txt")],
+                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+                        next_sample += 120
                     time.sleep(0.25)
             finally:
                 if process is not None:
@@ -155,6 +165,17 @@ def probe(args):
         report.update(**observations(text), exit_code=process.returncode, controlled_termination=deadline,
                       observed_seconds=round(time.monotonic() - started, 2), screenshots=shots,
                       created_save_files=[p.relative_to(saves).as_posix() for p in saves.rglob("*") if p.is_file()])
+        validator = shutil.which("spirv-val")
+        shader_results = []
+        if validator:
+            for binary in sorted(shader_dump.glob("*.spirv.bin.*")):
+                validated = subprocess.run([validator, "--target-env", "vulkan1.3", "--scalar-block-layout", str(binary)],
+                                           capture_output=True, text=True, timeout=15)
+                shader_results.append({"shader": binary.name, "valid": validated.returncode == 0,
+                                       "diagnostic": validated.stdout + validated.stderr})
+        (evidence / "spirv-validation.json").write_text(json.dumps(shader_results, indent=2) + "\n", encoding="utf8")
+        report["spirv_validation"] = {"available": bool(validator), "shaders": len(shader_results),
+                                     "invalid": sum(not r["valid"] for r in shader_results)}
         report["status"] = "observation_finished" if deadline or process.returncode == 0 else "process_failed"
         return report
     except (OSError, ValueError, subprocess.SubprocessError) as error:

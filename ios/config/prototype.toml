@@ -31,6 +31,8 @@ p2_native_sampled_min_bytes = 16384
 p2_native_max_anisotropy = 1
 p2_native_texture_lod_bias = 1.0
 p2_native_async_present = false
+# Use the renderer's existing compatibility result path for guest occlusion.
+p2_native_occlusion_queries = false
 present_effect = "fsr"
 # Prototype 2 specific skips are off: they were matched to its passes, not to Prototype 1's.
 p2_native_skip_depth_prepass = false

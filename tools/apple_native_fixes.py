@@ -2,6 +2,32 @@
 from prepare_source_port import replace_once
 
 
+def translator_source(text):
+    # Rectangle iteration adds another predecessor to the continue block.
+    # The original builds its PC Phi before adding that predecessor, leaving
+    # malformed SSA for shaders with guest control flow.
+    start = text.index('    builder_->setBuildPoint(main_loop_continue_);\n    if (has_main_switch) {')
+    end = text.index('    builder_->createBranch(main_loop_header_);', start)
+    end += len('    builder_->createBranch(main_loop_header_);')
+    continuation = text[start:end]
+    text = text[:start] + text[end:]
+    anchor = '''      builder_->setBuildPoint(main_loop_exit_);
+    }
+  }
+
+  // Write data for the last memexport.'''
+    replacement = '''      builder_->setBuildPoint(main_loop_exit_);
+    }
+    // All incoming PC values, including rectangle iteration, are now known.
+    spv::Block* after_main_loop = builder_->getBuildPoint();
+''' + continuation + '''
+    builder_->setBuildPoint(after_main_loop);
+  }
+
+  // Write data for the last memexport.'''
+    return replace_once(text, anchor, replacement)
+
+
 def renderer_source(text):
     text = replace_once(text, '#include "native_geometry_shaders.h"',
                         '#include "native_geometry_shaders.h"\n#include "PrototypePrimitiveIndices.h"')
@@ -92,6 +118,12 @@ def renderer_source(text):
                     ? frame - source_dest->last_written_frame : UINT64_MAX);
   }
   stats().frame_draws = frame_draw_count;''')
+    text = replace_once(text, '      if (ok) translation->GetOrCreateShaderModule();',
+        '''      if (ok) {
+        if (const char* dump = std::getenv("PROTOTYPE_SPIRV_DUMP"))
+          translation->Dump(dump, "spirv");
+        translation->GetOrCreateShaderModule();
+      }''')
     return text
 
 
