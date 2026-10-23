@@ -237,7 +237,19 @@ static bool PrepareDocuments(NSURL **documents, NSError **error) {
         }
         if (![@"3\n" writeToURL:audioMigration atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
     }
-    fprintf(stderr, "[prototype-source] build=%s renderer=native-dev.3 audio=device-default config=%s\n",
+    NSURL *pumpMigration = [root URLByAppendingPathComponent:@".prototype-config-v4"];
+    if (![files fileExistsAtPath:pumpMigration.path]) {
+        NSString *text = [NSString stringWithContentsOfURL:config encoding:NSUTF8StringEncoding error:error];
+        if (!text) return false;
+        NSRegularExpression *pump = [NSRegularExpression regularExpressionWithPattern:
+            @"(?m)^[\\t ]*audio_sdl_pump[\\t ]*=" options:0 error:NULL];
+        if (![pump numberOfMatchesInString:text options:0 range:NSMakeRange(0, text.length)]) {
+            NSString *changed = [text stringByAppendingString:@"\n# Pace guest audio requests on iOS\naudio_sdl_pump = true\n"];
+            if (![changed writeToURL:config atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
+        }
+        if (![@"4\n" writeToURL:pumpMigration atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
+    }
+    fprintf(stderr, "[prototype-source] build=%s renderer=sdk-vertex-expansion audio=stereo-paced config=%s\n",
         [[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] UTF8String], config.fileSystemRepresentation);
     NSString *game = [root.path stringByAppendingPathComponent:@"game"];
     NSString *saves = [root.path stringByAppendingPathComponent:@"saves"];

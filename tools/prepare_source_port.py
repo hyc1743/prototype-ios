@@ -517,9 +517,8 @@ endif()
     write("src/input/sdl/sdl_input_driver.cpp", apple_input_source)
     # Preserve underrun counts at the shipped warn log level. The endpoint
     # format and missing-frame ratio distinguish starvation from bad decoding.
-    write("src/audio/sdl/sdl_audio_driver.cpp", lambda text: replace_once(replace_once(text,
-        'REXAPU_INFO("[audio] SDL in 10 s:', 'REXAPU_WARN("[audio] SDL in 10 s:'),
-        'REXAPU_INFO("audio endpoint', 'REXAPU_WARN("audio endpoint'))
+    from apple_native_fixes import audio_source
+    write("src/audio/sdl/sdl_audio_driver.cpp", audio_source)
 
     write("include/rex/thread/fiber.h", lambda text: text.replace(
           "#if REX_PLATFORM_SWITCH\n", "#if REX_PLATFORM_SWITCH || defined(REX_PLATFORM_IOS)\n").replace(
@@ -641,11 +640,12 @@ def prepare(args):
                          "    address = uint32_t(fetch.base_address) << 12;")
     after = replace_once(after, "frontbuffer & 0x1FFFFFFF,fetch.base_address<<12,address,width,height,",
                          "frontbuffer & 0x1FFFFFFF,uint32_t(fetch.base_address)<<12,address,width,height,")
-    # native-dev.4's tessellation expansion regressed startup on the user's
-    # A19 Pro. Keep the complete native renderer/tessellation sources on the
-    # native-dev.3 path until an Apple runtime test validates a replacement.
-    if hashlib.sha256(after.encode("utf8")).hexdigest() != "51428bf38ec59a4339dae14dff90382db8c7e89e5ab18ac4cb719d294ce8193a":
-        raise ValueError("Recovery renderer differs from the verified native-dev.3 source")
+    # The pinned SDK already implements point/rectangle VS expansion. Connect
+    # its actual index-loading contract instead of inserting tessellation.
+    from apple_native_fixes import renderer_source
+    after = renderer_source(after)
+    shutil.copyfile(ROOT / "ios/source-port/PrototypePrimitiveIndices.h",
+                    prototype / "src/native/PrototypePrimitiveIndices.h")
     renderer.write_text(after, encoding="utf8", newline="\n")
     renderer_diff = diffs / "prototype-native-renderer.patch"
     renderer_diff.write_text("".join(difflib.unified_diff(before.splitlines(True), after.splitlines(True),

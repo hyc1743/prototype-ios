@@ -6,8 +6,9 @@ p2_renderer = "native"
 render_target_path_vulkan = "fsi"
 user_language = 1
 
-# Restore the native-dev.3 guest callback queue after the native-dev.4 regression.
+# Keep guest requests paced, instead of releasing several on one device pull.
 audio_maxqframes = 8
+audio_sdl_pump = true
 
 # Native renderer: the values Prototype 2 0.1.0 ships with (same engine).
 p2_native_msaa = false

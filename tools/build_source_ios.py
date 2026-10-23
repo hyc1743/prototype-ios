@@ -201,7 +201,8 @@ def build(args):
               "moltenvk_license_included": True,
               "resource_import_smoke": import_report, "native_controls": controls_report, "requires_jit": False,
               "app_icon": icon_report,
-              "recovery_baseline": "native-dev.3",
+              "primitive_expansion": "SDK vertex shader fallback",
+              "audio_output": "stereo with paced guest callback requests",
               "native_renderer_sha256": sha256(stage / "prototype/src/native/native_renderer.cpp"),
               "ipa_sha256": sha256(ipa), "ipa_bytes": ipa.stat().st_size, **native}
     (output / "build-report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf8")
