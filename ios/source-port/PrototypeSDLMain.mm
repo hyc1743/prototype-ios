@@ -194,8 +194,16 @@ static bool PrepareDocuments(NSURL **documents, NSError **error) {
         if (!text) return false;
         NSRegularExpression *russian = [NSRegularExpression regularExpressionWithPattern:
             @"(?m)^([\\t ]*user_language[\\t ]*=[\\t ]*)12([\\t ]*(?:#[^\\r\\n]*)?)(\\r?$)" options:0 error:NULL];
-        NSString *changed = [russian stringByReplacingMatchesInString:text options:0
-            range:NSMakeRange(0, text.length) withTemplate:@"${1}1${2}${3}"];
+        NSMutableString *migrated = [text mutableCopy];
+        NSArray<NSTextCheckingResult *> *matches = [russian matchesInString:text options:0
+            range:NSMakeRange(0, text.length)];
+        // Replace only the value, working backwards so earlier offsets remain
+        // valid. Numeric replacement templates can confuse group 1 + '1'
+        // with group 11 in ICU's replacement syntax.
+        for (NSTextCheckingResult *match in matches.reverseObjectEnumerator)
+            [migrated replaceCharactersInRange:NSMakeRange(NSMaxRange([match rangeAtIndex:1]), 2)
+                withString:@"1"];
+        NSString *changed = migrated;
         NSRegularExpression *audio = [NSRegularExpression regularExpressionWithPattern:
             @"(?m)^[\\t ]*audio_maxqframes[\\t ]*=" options:0 error:NULL];
         if (![audio numberOfMatchesInString:changed options:0 range:NSMakeRange(0, changed.length)])
