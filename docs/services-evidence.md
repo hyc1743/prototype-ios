@@ -2,13 +2,15 @@
 
 `tools/analyze_services.py` reproduces `work/analysis/services.json` from the
 supplied NRO and its independently recovered `.eh_frame` boundaries. The report
-contains 38 service functions with exact offsets, first 16 bytes, FDE extents,
+contains 63 service functions with exact offsets, first 16 bytes, FDE extents,
 body hashes, complete bounded disassembly and direct callers. The source digest
 is `16165370c4484394c81a775f48b1b2b47c833cc2bd412727935cb0fb17401330`.
 
-Three string references bind the source-level identification to the actual NRO:
+Six string references bind the source-level identification to the actual NRO:
 WindowSwitch::OpenImpl at `0x12d040`, SwitchAudioSystem::StartOutput at
-`0x19b280`, and SwitchInputDriver::Setup at `0x1ac460`. Their unique diagnostics
+`0x19b280`, SwitchInputDriver::Setup at `0x1ac460`, and the three memory adapter
+functions AllocFixed at `0xe2010`, MapFileView at `0xe3810` and
+CreateFileMappingHandle at `0xe3f30`. Their unique diagnostics
 and adjacent call order match the Switch SDK sources under
 `references/masseffect-nx/sdk/src/`. Source code is used to interpret binary
 observations; symbol names are inferred, since this guest has no corresponding
@@ -76,3 +78,36 @@ their offsets so the host can supply valid lifecycle state and waitable events.
 This is offline shell/Capstone evidence. The REA session reported an unconfigured
 Ghidra provider; no REA decompilation Evidence was produced. No guest execution,
 iOS input delivery, audio playback or gameplay verification is claimed.
+
+The extended report includes HID vibration initialization at `0x2d02630`,
+vibration send at `0x2d02a50` (IPC command 206), and appletUnhook at `0x2cfc2d0`.
+Vibration send uses four-byte device handles and 16-byte amplitude/frequency
+values. These require hosting if the underlying Horizon HID session is absent,
+including calls that merely send zero amplitudes.
+
+The original SDK executable-path function at `0xcf100` reads guest
+`__system_argc` at `0x401fb48` and `__system_argv` at `0x401fb40`; the folder
+function at `0xcf560` takes its parent path. Neither directly calls getcwd.
+Supplying arguments only to main leaves these independent globals unchanged.
+libnx argvSetup at `0x2d07700` runs before C++ constructors and fills them from
+the optional command-line pointer at `0x401fba8`. Homebrew configuration entry
+type 5 uses Value[1] for NUL-terminated command-line text; it does not take a
+char** array. Directly replacing argvSetup can instead populate the two globals
+with persistent host storage before constructors.
+
+The memory evidence establishes RexGmInit `0xdeee0`, Shutdown `0xdf000`,
+Base `0xdf1d0`, Size `0xdf1e0`, WindowToOffset `0xdf1f0`, AddView `0xdf450`,
+Commit `0xdf640`, FaultIn `0xdfca0`, MapCommittedRange `0xdff00`,
+Protect `0xe0220`, QueryProtect `0xe0f40`, ShadowFor `0xe1410` and
+SetReadOnlyMapped `0xe1560`, with diagnostic counters in the report.
+MapCommittedRange and read-only logical bookkeeping are additions documented
+by the supplied Prototype SDK patch. Decommit and ProtectionMode have no
+established standalone address here; possible removal by linking remains an
+inference.
+
+The actual nine-row Xbox mapping table starts at `0x2f3f5b0`. Its E0 physical
+view maps guest `0xe0000000..0xffffffff` to backing offset `0x100001000`, while
+A0, C0 and raw physical aliases use `0x100000000`. This 4 KiB skew matters on an
+iOS device with 16 KiB VM pages. The supplied SDK source masks mapping offsets
+by allocation granularity and has corresponding physical-address adjustment;
+its applicability to this precompiled guest requires further verification.

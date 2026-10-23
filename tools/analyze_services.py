@@ -23,8 +23,28 @@ from nro import Nro
 # Names are inferred from SDK source call order, constants and libnx behavior.
 # Addresses and FDE extents are independently checked against the actual NRO.
 FUNCTIONS = {
+    "filesystem_GetExecutablePath": (0xCF100, "Reads __system_argc and __system_argv through GOT, checks sdmc prefix and stat; source filesystem_posix.cpp"),
+    "filesystem_GetExecutableFolder": (0xCF560, "Calls GetExecutablePath then std::filesystem::path::parent_path; no direct getcwd call"),
+    "RexGmInit": (0xDEEE0, "CreateFileMappingHandle source-correlated diagnostic function calls it with page-rounded mapping size"),
+    "RexGmShutdown": (0xDF000, "Immediately follows Init in extern C source order; unmaps chunks, releases backing and reservation"),
+    "RexGmBase": (0xDF1D0, "CreateFileMappingHandle/MapFileView/AllocFixed call this; atomic load of base"),
+    "RexGmSize": (0xDF1E0, "MapFileView and AllocFixed compare end address with Base+Size"),
+    "RexGmWindowToOffset": (0xDF1F0, "AllocFixed passes guest host address plus size_t output before Commit"),
+    "RexGmCommittedBytes": (0xDF2D0, "AllocFixed failure diagnostic obtains this before ChunkCount and MappedBytes"),
+    "RexGmChunkCount": (0xDF330, "AllocFixed failure diagnostic source call sequence; state+0x68 is map size"),
+    "RexGmMappedBytes": (0xDF390, "AllocFixed failure diagnostic source call sequence; state+0x108"),
+    "RexGmLastResult": (0xDF3F0, "AllocFixed and MapFileView failure diagnostics use returned u32; state+0x110"),
+    "RexGmAddView": (0xDF450, "MapFileView passes base, backing offset and length in source order"),
+    "RexGmCommit": (0xDF640, "AllocFixed passes mapping offset, length and permission enum before Protect"),
+    "RexGmFaultIn": (0xDFCA0, "One-address argument, view lookup and MapChunkIntoView helper; source and Prototype SDK patch"),
+    "RexGmMapCommittedRange": (0xDFF00, "Two-argument eager range mapper added in prototype-switch SDK patch; AllocFixed uses for writable allocations"),
+    "RexGmProtect": (0xE0220, "AllocFixed passes address,length,access,NULL after Commit; native renderer read-only bookkeeping patch present"),
+    "RexGmQueryProtect": (0xE0F40, "Next source-correlated extern C function after Protect; writes output size and access enum"),
+    "RexGmShadowFor": (0xE1410, "One-address argument, view/committed chunk lookup, returns writable shadow alias"),
+    "RexGmSetReadOnlyMapped": (0xE1560, "Exact Prototype SDK patch adds bool setter protected by state mutex after ShadowFor"),
     "appletGetAppletType": (0x2CFC290, "SDK context Initialize tests the result before setting focus handling"),
     "appletHook": (0x2CFC2A0, "SDK context Initialize passes cookie, callback and context"),
+    "appletUnhook": (0x2CFC2D0, "Adjacent linked-list unlink walks appletHook cookie chain and removes matching cookie"),
     "appletSetFocusHandlingMode": (0x2CFC310, "SDK Initialize passes enum value 2 before installing hook"),
     "appletGetDefaultDisplayResolution": (0x2CFC4D0, "WindowSwitch::QueryDisplayResolution passes two s32 outputs"),
     "appletGetDefaultDisplayResolutionChangeEvent": (0x2CFC550, "SDK Initialize passes impl display-resolution Event output"),
@@ -54,6 +74,8 @@ FUNCTIONS = {
     "hidGetNpadStatesGc": (0x2D02320, "padUpdate branch when style bit 5 set; analog triggers copied"),
     "hidGetNpadStatesSystemExt": (0x2D02470, "padUpdate branch when style bit 29 set"),
     "hidPermitVibration": (0x2D02A40, "SDK Setup passes true after pad initialization"),
+    "hidInitializeVibrationDevices": (0x2D02630, "Validates 1-2 handles and style, writes handle bytes, creates active vibration list using IPC203 then activates handles"),
+    "hidSendVibrationValues": (0x2D02A50, "IPC206; handle array byte length=count*4 and value array length=count*16, matches libnx source"),
     "nwindowGetDefault": (0x2D061F0, "WindowSwitch::OpenImpl first call; returns static image address 0x401fa58"),
     "nwindowIsValid": (0x2D068C0, "OpenImpl checks default window; compares first u32 with 0x6e69574e"),
     "nwindowGetDimensions": (0x2D06AB0, "Matches libnx validation and current/default dimension output selection"),
@@ -61,6 +83,9 @@ FUNCTIONS = {
     "padConfigureInput": (0x2D08AA0, "SDK Setup passes 4 players and style mask 0x1f; normalized unique Biko3 match"),
     "padInitializeWithMask": (0x2D08B40, "SDK padInitialize inline wrapper passes 64-bit mask incl handheld bit32"),
     "padUpdate": (0x2D08B70, "SDK Poll calls it; preserves prior held at+24, zeros new held+16/sticks+32 and dispatches HID styles"),
+    "argvSetup": (0x2D07700, "libnx initialization calls before constructors; initializes argc/argv globals, gets optional command line and parses into heap"),
+    "envHasArgv": (0x2D07CC0, "Checks nonzero command-line pointer at image+0x401fba8"),
+    "envGetArgv": (0x2D07CE0, "Loads optional command-line pointer at image+0x401fba8"),
 }
 
 REFERENCE = {
@@ -82,6 +107,9 @@ ANCHORS = {
     "WindowSwitch: no default NWindow": 0x12D040,
     "SwitchAudioSystem: audoutInitialize failed: 0x{:08X}": 0x19B280,
     "SwitchInputDriver: hidInitialize failed: 0x{:08X}": 0x1AC460,
+    "Could not reserve the guest window of 0x{:X} bytes. Title takeover is required: in applet mode there is no room.": 0xE3F30,
+    "MapFileView: could not register the view 0x{:016X} (0x{:X} bytes from 0x{:X}); failure 0x{:08X}": 0xE3810,
+    "AllocFixed: could not commit 0x{:X} bytes at 0x{:016X}. Failure 0x{:08X}; backing {} MB in {} chunks, mapped {} MB counting mirrors.": 0xE2010,
 }
 
 
@@ -169,17 +197,28 @@ def analyze(source, boundaries, strings, reference_nro=None, reference_boundarie
                for o, s in string_rows if s in ANCHORS]
     if len(anchors) != len(ANCHORS) or any(not any(x["containing_fde"] == row["source_correlated_function"] for x in row["references"]) for row in anchors):
         raise ValueError("Source anchor did not resolve to its expected FDE")
+    memory_map_offset = 0x2F3F5B0
+    memory_map = [{"guest_start": hex(a), "guest_end": hex(b), "backing_offset": hex(c)}
+                  for a, b, c in struct.iter_unpack("<QQQ", data[memory_map_offset:memory_map_offset + 9 * 24])]
+    if memory_map[7] != {"guest_start": "0xe0000000", "guest_end": "0xffffffff", "backing_offset": "0x100001000"}:
+        raise ValueError("Unexpected Xbox physical mirror skew")
+    if struct.unpack_from("<Q", data, 0x3CA5B10)[0] != 0x401FB48 or struct.unpack_from("<Q", data, 0x3CA4068)[0] != 0x401FB40:
+        raise ValueError("Guest argv GOT entries differ from reviewed startup")
     return {"schema": 1, "authority": "offline-capstone-and-fde-source-correlation",
         "source_nro_sha256": nro.sha256, "source_nro_bytes": len(data),
         "boundaries_sha256": digest(boundary_data),
         "libnx_source_reference": {"repository": "switchbrew/libnx", "commit": "b156b4774fb2df7b93402169509266da7547fc4c",
-            "files": ["nx/source/runtime/pad.c", "nx/include/switch/runtime/pad.h", "nx/source/display/native_window.c", "nx/include/switch/display/native_window.h"]},
+            "files": ["nx/source/runtime/pad.c", "nx/include/switch/runtime/pad.h", "nx/source/display/native_window.c", "nx/include/switch/display/native_window.h", "nx/source/services/hid.c", "nx/source/runtime/argv.c", "nx/source/runtime/env.c", "nx/include/switch/runtime/env.h"]},
+        "prototype_sdk_patch": {"path": "references/prototype-switch/patches/rexglue-sdk-masseffect-nx.patch", "base_repository": "nebadasSwifty/masseffect-nx", "base_revision": "a85b0b4", "evidence": "Adds MapCommittedRange, SetReadOnlyMapped and native readonly_logical handling visible in this guest"},
         "source_anchors": anchors, "functions": result,
         "abi": {
+            "libnx_argv": {"system_argc_offset": "0x401fb48", "system_argv_offset": "0x401fb40", "optional_command_line_offset": "0x401fba8", "argc_got_offset": "0x3ca5b10", "argv_got_offset": "0x3ca4068", "config_entry_bytes": 24, "config_entry_argv_key": 5, "config_value0": "unused", "config_value1": "pointer to NUL-terminated command-line text, not char**", "setup_heap_bytes": "0x9000", "crt_argc_load": "0xc4..0xc8", "crt_argv_load": "0xcc..0xd0", "crt_d4_d8": "main return address load, unrelated to argv"},
+            "xbox_memory_map": {"table_offset": hex(memory_map_offset), "rows": memory_map, "current_allocation_granularity": 4096, "current_allocation_granularity_function": "0xe1fe0", "e0_skew_bytes": 4096, "source_granularity_adaptation": "MapViews masks backing offsets to allocation granularity; SDK implements physical 4KB skew adjustment for larger host allocation granularity; runtime verification remains required"},
             "PadState": {"bytes": 56, "fields": {"id_mask": 0, "active_id_mask": 1, "read_handheld": 2, "active_handheld": 3, "style_set": 4, "attributes": 8, "buttons_cur": 16, "buttons_old": 24, "left_x": 32, "left_y": 36, "right_x": 40, "right_y": 44, "gc_trigger_l": 48, "gc_trigger_r": 52}, "buttons_down": "current & ~previous", "buttons_up": "previous & ~current", "connected_attribute_bit": 0},
             "AudioOutBuffer": {"bytes": 40, "fields": {"next": 0, "buffer": 8, "buffer_size": 16, "data_size": 24, "data_offset": 32}},
             "audio_output": {"sample_rate": 48000, "channels": 2, "pcm_format": 2, "sample_bits": 16, "buffer_pcm_bytes": 4096, "frames_per_buffer": 1024, "queued_buffers": 3},
             "NWindow": {"bytes": 128, "default_address": "0x401fa58", "fields": {"magic": 0, "slots_configured": 48, "width": 68, "height": 72, "crop": 84, "default_width": 112, "default_height": 116}, "magic": "0x6e69574e"}},
+        "unresolved": ["RexGmDecommit and RexGmProtectionMode have no established standalone FDE in this report; they may have been removed by linking, but absence is not proven.", "Later SDK RexGmConfigure/LargePagesMode/LayoutSummary/TlbBenchmark functions are not established in this older guest.", "GetExecutablePath/GetExecutableFolder use argv globals without directly calling getcwd; independent std::filesystem absolute operations may still need hosted cwd support."],
         "limitations": ["Symbol names are inferred from source call order and constants, not recovered debug symbols.", "Current upstream libnx is an ABI cross-check, not proof of the historical build's exact source commit.", "All hook offsets, bytes and extents are checked against the pinned supplied guest; no guest execution was performed.", "No evidence here proves iOS gameplay, audio playback, input delivery, or Vulkan presentation.", "REA native provider was unavailable (Ghidra unconfigured); observations are ordinary shell/Capstone analysis, not REA Evidence."]}
 
 

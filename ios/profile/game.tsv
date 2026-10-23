@@ -1,0 +1,16 @@
+# Local forwarder profile identifier; this is not an asserted retail title ID.
+title_id	0150524F54310000
+program_id	0150524F54310000
+name	Prototype
+ipa	Prototype-development.ipa
+app_category	public.app-category.games
+pad_layout	full
+package	nro-local
+modules	main
+romfs_marker	default.xex
+mem_reserve	0x100000000
+mem_alias	0x10000000
+mem_stack	0x10000000
+app_pool	0xCD500000
+game_args	
+op_mode	handheld
