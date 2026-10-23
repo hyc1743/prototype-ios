@@ -9,6 +9,13 @@
 的五个附件大小和 SHA-256 均与本地一致。该版本修复预连接手柄漏掉事件的问题，
 相关原生 C++ 回归测试在 Linux CI 通过；300 秒完整游戏探测尚在运行。
 
+用户在 iPhone 17 Pro Max 上完成资源解包后提供的设备日志表明：分卷导入已成功，
+MoltenVK 已在 A19 Pro 上创建设备和 UIKit swapchain，但 ReX runtime 随后因
+`CreateFileMappingHandle` 返回无效而停止：`Unable to reserve the 4gb guest address space`。
+这一步发生在 guest 映射和游戏主模块启动之前；日志没有记录 `shm_open`／`ftruncate`
+底层 errno，因此目前不能把它归因于签名能力缺失。`weixing3` 使用 NRO 宿主路线，
+不经过相同的 Xbox guest 共享 arena。iOS 专用临时文件映射后备及底层错误日志正在构建。
+
 2026-10-23：原生源码路线已成功构建并发布开发预发行版 `v0.1.0-native-dev.1`。
 公共仓库为 `hyc1743/prototype-ios`，构建运行 39888136242，提交
 `0745715855fcf40d44c7a9a4059a8201096e7f06`。

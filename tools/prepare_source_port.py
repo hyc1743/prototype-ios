@@ -226,7 +226,9 @@ def apple_fiber_source(text):
 
 
 def apple_memory_source(text):
-    """Use iPhoneOS's public region API without changing permission decoding."""
+    """Use public iPhoneOS VM APIs and a sandbox-local shared mapping backing."""
+    text = replace_once(text, "#include <cstring>",
+                        "#include <cstring>\n#include <cstdlib>\n#include <system_error>")
     text = replace_once(text, "#include <mach/mach_vm.h>",
                         "#if !defined(REX_PLATFORM_IOS) || !REX_PLATFORM_IOS\n#include <mach/mach_vm.h>\n#endif")
     old = '''  mach_vm_address_t address = reinterpret_cast<mach_vm_address_t>(base_address);
@@ -284,7 +286,128 @@ def apple_memory_source(text):
   }
 
   length = static_cast<size_t>(region_size - (requested - address));'''
-    return replace_once(text, old, new)
+    text = replace_once(text, old, new)
+    text = replace_once(text,
+'''  int oflag;
+  switch (access) {
+    case PageAccess::kNoAccess:
+      oflag = 0;
+      break;
+    case PageAccess::kReadOnly:
+    case PageAccess::kExecuteReadOnly:
+      oflag = O_RDONLY;
+      break;
+    case PageAccess::kReadWrite:
+    case PageAccess::kExecuteReadWrite:
+      oflag = O_RDWR;
+      break;
+    default:
+      assert_always();
+      return kFileMappingHandleInvalid;
+  }
+  oflag |= O_CREAT;
+  auto full_path = MakeShmName(path);
+  int ret = shm_open(full_path.c_str(), oflag, 0777);
+  if (ret < 0) {
+    return kFileMappingHandleInvalid;
+  }
+  if (rex_ftruncate64(ret, static_cast<off_t>(length)) != 0) {
+    close(ret);
+    shm_unlink(full_path.c_str());
+    return kFileMappingHandleInvalid;
+  }
+  return static_cast<FileMappingHandle>(ret);
+#endif''',
+'''  int ret = -1;
+#if defined(REX_PLATFORM_IOS) && REX_PLATFORM_IOS
+  // iOS can reject a multi-gigabyte POSIX shared-memory object before the VM
+  // reservation step. A sparse, unlinked file in this app's own tmp directory
+  // gives MAP_SHARED the same backing and lifetime without consuming disk space
+  // until pages are actually written.
+  std::error_code temp_error;
+  const auto temp_directory = std::filesystem::temp_directory_path(temp_error);
+  if (temp_error) {
+    REXSYS_ERROR("iOS guest backing: cannot resolve app temporary directory: {} ({})",
+                 temp_error.message(), temp_error.value());
+    return kFileMappingHandleInvalid;
+  }
+  std::string temporary_name = (temp_directory / "prototype-memory-XXXXXX").string();
+  ret = mkstemp(temporary_name.data());
+  if (ret < 0) {
+    const int err = errno;
+    REXSYS_ERROR("iOS guest backing: mkstemp in {} failed: {} ({})",
+                 temp_directory.string(), std::strerror(err), err);
+    errno = err;
+    return kFileMappingHandleInvalid;
+  }
+  if (unlink(temporary_name.c_str()) != 0) {
+    const int err = errno;
+    close(ret);
+    REXSYS_ERROR("iOS guest backing: unlink of temporary mapping file failed: {} ({})",
+                 std::strerror(err), err);
+    errno = err;
+    return kFileMappingHandleInvalid;
+  }
+  const int descriptor_flags = fcntl(ret, F_GETFD);
+  if (descriptor_flags < 0 || fcntl(ret, F_SETFD, descriptor_flags | FD_CLOEXEC) != 0) {
+    const int err = errno;
+    close(ret);
+    REXSYS_ERROR("iOS guest backing: setting close-on-exec failed: {} ({})",
+                 std::strerror(err), err);
+    errno = err;
+    return kFileMappingHandleInvalid;
+  }
+#else
+  int oflag;
+  switch (access) {
+    case PageAccess::kNoAccess:
+      oflag = 0;
+      break;
+    case PageAccess::kReadOnly:
+    case PageAccess::kExecuteReadOnly:
+      oflag = O_RDONLY;
+      break;
+    case PageAccess::kReadWrite:
+    case PageAccess::kExecuteReadWrite:
+      oflag = O_RDWR;
+      break;
+    default:
+      assert_always();
+      return kFileMappingHandleInvalid;
+  }
+  oflag |= O_CREAT;
+  auto full_path = MakeShmName(path);
+  ret = shm_open(full_path.c_str(), oflag, 0777);
+  if (ret < 0) {
+    const int err = errno;
+    REXSYS_ERROR("shm_open({}) failed: {} ({})", full_path, std::strerror(err), err);
+    errno = err;
+    return kFileMappingHandleInvalid;
+  }
+#endif
+  if (rex_ftruncate64(ret, static_cast<off_t>(length)) != 0) {
+    const int err = errno;
+    close(ret);
+#if !defined(REX_PLATFORM_IOS) || !REX_PLATFORM_IOS
+    shm_unlink(full_path.c_str());
+#endif
+    REXSYS_ERROR("guest backing resize to 0x{:X} bytes failed: {} ({})",
+                 length, std::strerror(err), err);
+    errno = err;
+    return kFileMappingHandleInvalid;
+  }
+  return static_cast<FileMappingHandle>(ret);
+#endif''')
+    text = replace_once(text,
+'''#if !REX_PLATFORM_ANDROID
+  auto full_path = MakeShmName(path);
+  shm_unlink(full_path.c_str());
+#endif''',
+'''#if !REX_PLATFORM_ANDROID && (!defined(REX_PLATFORM_IOS) || !REX_PLATFORM_IOS)
+  auto full_path = MakeShmName(path);
+  shm_unlink(full_path.c_str());
+#endif''')
+    return text
 
 
 def apple_input_source(text):

@@ -8,9 +8,13 @@
 公共 Release 的 `Prototype-native-development.ipa` 未签名，需使用自己的
 证书与有效描述文件签名。不要将 Apple ID 密码、私钥或描述文件提交到仓库。
 
-签名时使用 [Prototype.entitlements](../ios/source-port/Prototype.entitlements)
-中的 `com.apple.developer.kernel.extended-virtual-addressing` 能力，并确认最终
-签名和描述文件允许该能力。仅把 plist 放进 IPA 不会赋予权限。
+如果设备日志显示地址区间保留／映射失败，签名时使用
+[Prototype.entitlements](../ios/source-port/Prototype.entitlements) 中的
+`com.apple.developer.kernel.extended-virtual-addressing` 能力，并确认最终签名和
+描述文件允许该能力。仅把 plist 放进 IPA 不会赋予权限。当前日志显示的
+`Unable to reserve the 4gb guest address space` 是共享映射句柄创建失败；该日志尚未
+证明是扩展地址权限问题，更新版会先在 `engine.log` 写出共享后备文件创建／扩展的
+具体系统错误。
 原 SDK 需要预留从 `0` 到 `0x11FFFFFFF` 的连续 guest 窗口（4.5 GiB 虚拟地址）；
 预留地址空间与实际占用同等大小的物理内存是不同概念。
 
@@ -35,7 +39,9 @@
 “文件 → 我的 iPhone → Prototype”下的 `log.txt` 包含启动／异常信息，
 `engine.log` 包含 SDK 日志，`log.prev.txt` 保留上一次启动记录。
 若闪退，另行保留 iOS 的 Prototype 崩溃记录以及 jetsam 记录（如有）。
-需要区分资源导入失败、guest 地址空间映射失败、渲染初始化失败和进入游戏后的故障。
+需要区分资源导入失败、共享映射后备创建失败、guest 地址空间映射／权限失败、
+渲染初始化失败和进入游戏后的故障。`weixing3` 使用的 NRO 宿主与当前原生重编译路线
+不同；前者成功启动不能单独证明 Xbox guest 的共享内存布局已在此 IPA 正常工作。
 分享日志前可自行去掉与问题无关的个人路径信息；不需要发送游戏资源或签名私钥。
 
 macOS 开场画面和音频日志已观察到，但 iPhone 上每一项仍需实际执行确认。
