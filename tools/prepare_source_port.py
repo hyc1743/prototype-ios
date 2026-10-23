@@ -29,6 +29,7 @@ PROTOTYPE_COMMIT = "292de4b382dbe335011d8b4f56ec4212df5ef74c"
 PATCH_SHA256 = "a7ac79c90273ed4b17233f8f88381183270f7f232b47aa134c651e4ae4677bcc"
 CODEGEN_PATCH_SHA256 = "f9e06d2fc0e34db6805bdd6612bc8a00d5577834fc001f822634a2076bcd04d1"
 PATCHED_SDK_INPUTS = {
+    "src/audio/sdl/sdl_audio_driver.cpp": "1e9a0d9b459ee089bb53ff3529d0f70fde1e5659b79fbd0ae2aa759ed3610186",
     "src/input/sdl/sdl_input_driver.cpp": "5317f106ddd16cbf68b590061dba188a8090b05238f460e25f24eec27840a30c",
     "CMakeLists.txt": "c6bef64cd480a56f3c090663b9e8a57698ea69ac62cf84e0a95b48d981e24557",
     "src/system/CMakeLists.txt": "132476ae77986b2c08dab266db787dc00588820ba3f339d82feadec96d6106ee",
@@ -514,6 +515,11 @@ endif()
     write("src/ui/vulkan/spirv_tools_context.cpp", spirv)
     write("src/core/memory_posix.cpp", apple_memory_source)
     write("src/input/sdl/sdl_input_driver.cpp", apple_input_source)
+    # Preserve underrun counts at the shipped warn log level. The endpoint
+    # format and missing-frame ratio distinguish starvation from bad decoding.
+    write("src/audio/sdl/sdl_audio_driver.cpp", lambda text: replace_once(replace_once(text,
+        'REXAPU_INFO("[audio] SDL in 10 s:', 'REXAPU_WARN("[audio] SDL in 10 s:'),
+        'REXAPU_INFO("audio endpoint', 'REXAPU_WARN("audio endpoint'))
 
     write("include/rex/thread/fiber.h", lambda text: text.replace(
           "#if REX_PLATFORM_SWITCH\n", "#if REX_PLATFORM_SWITCH || defined(REX_PLATFORM_IOS)\n").replace(
@@ -635,6 +641,23 @@ def prepare(args):
                          "    address = uint32_t(fetch.base_address) << 12;")
     after = replace_once(after, "frontbuffer & 0x1FFFFFFF,fetch.base_address<<12,address,width,height,",
                          "frontbuffer & 0x1FFFFFFF,uint32_t(fetch.base_address)<<12,address,width,height,")
+    from apple_renderer import primitive_renderer_source
+    after = primitive_renderer_source(after)
+    shutil.copyfile(ROOT / "ios/source-port/PrototypePrimitiveTessellation.h",
+                    prototype / "src/native/PrototypePrimitiveTessellation.h")
+    tess = prototype / "src/native/native_tessellation.cpp"
+    tess_text = tess.read_text(encoding="utf8")
+    tess_text = replace_once(tess_text, '}  // namespace p2::native::tessellation',
+        'bool CompilePrimitiveShader(bool evaluation, const std::string& source, std::vector<uint32_t>& spirv) {\n'
+        '  return Compile(evaluation ? EShLangTessEvaluation : EShLangTessControl, source, spirv);\n'
+        '}\n\n}  // namespace p2::native::tessellation')
+    tess.write_text(tess_text, encoding="utf8", newline="\n")
+    tess_header = prototype / "src/native/native_tessellation.h"
+    tess_text = tess_header.read_text(encoding="utf8").replace('#include <vector>', '#include <vector>\n#include <string>')
+    tess_text = replace_once(tess_text, '}  // namespace p2::native::tessellation',
+        'bool CompilePrimitiveShader(bool evaluation, const std::string& source, std::vector<uint32_t>& spirv);\n\n'
+        '}  // namespace p2::native::tessellation')
+    tess_header.write_text(tess_text, encoding="utf8", newline="\n")
     renderer.write_text(after, encoding="utf8", newline="\n")
     renderer_diff = diffs / "prototype-native-renderer.patch"
     renderer_diff.write_text("".join(difflib.unified_diff(before.splitlines(True), after.splitlines(True),

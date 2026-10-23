@@ -1,9 +1,13 @@
 # PROTOTYPE / Nintendo Switch - 1.0.0 (free, t.me/fspores)
 # ReXGlue port; SDK masseffect-nx + prototype2-nx patch; native renderer from prototype2-nx (penettrator).
-# user_language: 12 = Russian, 1 = English (depends on your copy of the game).
+# Default to English, which is included in the bundled resource set.
+# Chinese requires matching translated game resources, not only a locale ID.
 p2_renderer = "native"
 render_target_path_vulkan = "fsi"
-user_language = 12
+user_language = 1
+
+# Keep enough guest audio ready for CoreAudio callbacks and shader compilation.
+audio_maxqframes = 32
 
 # Native renderer: the values Prototype 2 0.1.0 ships with (same engine).
 p2_native_msaa = false

@@ -18,6 +18,7 @@ from build_ios import macho_sections, moltenvk, package, run, sha256
 from ci_codegen import PINNED_ZIP_SHA256, XEX_SHA256, safe_path
 from prepare_source_port import SDK_COMMIT, PROTOTYPE_COMMIT
 from native_controls import stage_controls, SOURCE_COMMIT as CONTROLS_COMMIT
+from app_icon import install_icon
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -169,6 +170,7 @@ def build(args):
     if len(applications) != 1:
         raise ValueError("Expected exactly one compiled Prototype.app")
     app = applications[0]
+    icon_report = install_icon(app, output / "app-icon")
     dm = app / "dm"
     dm.mkdir(exist_ok=True)
     shutil.copyfile(ROOT / "ios/resources/PrototypeData.manifest.json", dm / "PrototypeData.manifest.json")
@@ -198,6 +200,7 @@ def build(args):
               "sdk_commit": SDK_COMMIT, "prototype_commit": PROTOTYPE_COMMIT,
               "moltenvk_license_included": True,
               "resource_import_smoke": import_report, "native_controls": controls_report, "requires_jit": False,
+              "app_icon": icon_report,
               "ipa_sha256": sha256(ipa), "ipa_bytes": ipa.stat().st_size, **native}
     (output / "build-report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf8")
     print(json.dumps(report, indent=2))

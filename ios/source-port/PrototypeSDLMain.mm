@@ -186,6 +186,28 @@ static bool PrepareDocuments(NSURL **documents, NSError **error) {
         NSURL *bundled = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"dm/prototype.toml"];
         if (![files copyItemAtURL:bundled toURL:config error:error]) return false;
     }
+    // Repair the shipped Russian default on upgrades too. Preserve all other
+    // player settings and keep a backup before the first migration.
+    NSURL *migration = [root URLByAppendingPathComponent:@".prototype-config-v2"];
+    if (![files fileExistsAtPath:migration.path]) {
+        NSString *text = [NSString stringWithContentsOfURL:config encoding:NSUTF8StringEncoding error:error];
+        if (!text) return false;
+        NSRegularExpression *russian = [NSRegularExpression regularExpressionWithPattern:
+            @"(?m)^([\\t ]*user_language[\\t ]*=[\\t ]*)12([\\t ]*(?:#[^\\r\\n]*)?)(\\r?$)" options:0 error:NULL];
+        NSString *changed = [russian stringByReplacingMatchesInString:text options:0
+            range:NSMakeRange(0, text.length) withTemplate:@"${1}1${2}${3}"];
+        NSRegularExpression *audio = [NSRegularExpression regularExpressionWithPattern:
+            @"(?m)^[\\t ]*audio_maxqframes[\\t ]*=" options:0 error:NULL];
+        if (![audio numberOfMatchesInString:changed options:0 range:NSMakeRange(0, changed.length)])
+            changed = [changed stringByAppendingString:@"\n# iOS audio buffering\naudio_maxqframes = 32\n"];
+        if (![changed isEqualToString:text]) {
+            NSURL *backup = [root URLByAppendingPathComponent:@"prototype.pre-v2.toml"];
+            if (![files fileExistsAtPath:backup.path] && ![files copyItemAtURL:config toURL:backup error:error]) return false;
+            if (![changed writeToURL:config atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
+            fprintf(stderr, "[prototype-source] migrated legacy language/audio defaults (backup: prototype.pre-v2.toml)\n");
+        }
+        if (![@"2\n" writeToURL:migration atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
+    }
     NSString *game = [root.path stringByAppendingPathComponent:@"game"];
     NSString *saves = [root.path stringByAppendingPathComponent:@"saves"];
     // PrototypeApp::OnConfigurePaths applies CONFIG_PATH before its existing
@@ -243,6 +265,9 @@ static int SDLCALL PrototypeSDLMain(int argc, char **argv) {
             }
             SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "uikit", SDL_HINT_OVERRIDE);
             SDL_SetHint(SDL_HINT_APP_NAME, "Prototype");
+            // 512 frames at 48 kHz avoids large CoreAudio pulls draining the
+            // guest queue in one callback; SDL still negotiates device format.
+            SDL_SetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, "512");
             // GameController input is merged with touch by the virtual pad.
             // Keep one logical player instead of also opening each pad in SDL.
             SDL_SetHint(SDL_HINT_JOYSTICK_MFI, "0");
