@@ -165,9 +165,15 @@ extern "C" uint64_t PrototypeNativeProbeMaxDraws() {
 }
 REXCVAR_DEFINE_UINT32(proto_apple_debug_raster, 0, "Prototype",
                        "Diagnostic: bit 0 no depth/stencil, bit 1 no cull, bit 2 solid post, bit 3 fixed post VS");
+REXCVAR_DEFINE_BOOL(proto_apple_normal_depth, false, "Prototype",
+                       "Diagnostic: preserve guest depth through a non-reversed host viewport");
 
 namespace p2::native {
 namespace shaders {''')
+    text = replace_once(text,
+        '                                 properties.maxViewportDimensions[1], true, depth_control, false,',
+        '                                 properties.maxViewportDimensions[1],\n'
+        '                                 !REXCVAR_GET(proto_apple_normal_depth), depth_control, false,')
     text = replace_once(text, '  key.layout = (uint64_t(st.counts[0]) << 48)',
         '''  if (REXCVAR_GET(proto_apple_debug_raster) & 1u) {
     key.depth_test = key.depth_write = key.stencil_test = 0;
@@ -220,11 +226,23 @@ namespace shaders {''')
       if (tessellation::CompileFragmentShader(
           "#version 450\\nlayout(set=0,binding=0,std430) readonly buffer S{uint words[];};\\n"
           "layout(set=1,binding=4,std140) uniform F{uvec4 fetch[48];};\\n"
+          "layout(set=1,binding=0,std140) uniform C{uint flags;"
+          "layout(offset=16) int indexBase;layout(offset=124) float nx;float ny;float nz;"
+          "layout(offset=140) float ox;float oy;float oz;"
+          "layout(offset=288) float bias;layout(offset=496) uint imin;uint imax;};\\n"
+          "layout(set=1,binding=2,std140) uniform P{vec4 ps[9];};\\n"
           "layout(location=0) out vec4 c;\\n"
-          "void main(){uint i=uint(gl_FragCoord.x)/16u;uint v=0u;"
+          "void main(){uint i=uint(gl_FragCoord.x)/8u;uint v=0u;"
           "uint base=(fetch[47].z>>2u)&0x7ffffffu;"
           "if(i==0u)v=fetch[47].z;else if(i==1u)v=fetch[47].w;"
           "else if(i<26u){uint p=base+i-2u;v=p<uint(words.length())?words[p]:0xDEADBAD0u;}"
+          "else if(i==26u)v=flags;else if(i==27u)v=uint(indexBase);"
+          "else if(i==28u)v=imin;else if(i==29u)v=imax;"
+          "else if(i==30u)v=floatBitsToUint(nx);else if(i==31u)v=floatBitsToUint(ny);"
+          "else if(i==32u)v=floatBitsToUint(nz);else if(i==33u)v=floatBitsToUint(ox);"
+          "else if(i==34u)v=floatBitsToUint(oy);else if(i==35u)v=floatBitsToUint(oz);"
+          "else if(i==36u)v=floatBitsToUint(bias);"
+          "else if(i<49u){uint p=i-37u;v=floatBitsToUint(ps[p/4u][p%4u]);}"
           "c=vec4(v&255u,(v>>8u)&255u,(v>>16u)&255u,(v>>24u)&255u)/255.0;}\\n", spirv))
         prototype_debug_vertex_data_ps = rex::ui::vulkan::util::CreateShaderModule(
             device, spirv.data(), spirv.size()*sizeof(uint32_t));
