@@ -1,9 +1,11 @@
 # Prototype iOS
 
-将当前 `switch/prototype-nx` 的 Prototype 版本适配到 iPhone / iPad，使用
-nxnative 原生宿主与 MoltenVK。参考实现为本地 `../weixing3` 项目。
+将当前 `switch/prototype-nx` 的 Prototype 版本适配到 iPhone / iPad，重新编译
+原始 PPC 翻译、原生渲染器和 ReXGlue SDK，使用 SDL3/UIKit 与 MoltenVK。
+参考实现为本地 `../weixing3` 项目。
 
-当前处于开发阶段，**尚未发布可安装的 IPA**。资源分卷已发布至
+原生 IPA 已发布至 [v0.1.0-native-dev.1](https://github.com/hyc1743/prototype-ios/releases/tag/v0.1.0-native-dev.1)，
+为需要自行签名的开发预发行版。资源分卷已发布至
 [resources-v1](https://github.com/hyc1743/prototype-ios/releases/tag/resources-v1)。
 生成 IPA、通过启动测试与完整游戏可玩性是分别验证的项目；
 完整游戏、iPhone 实机画面、音频及存档尚未验证。构建结果见
@@ -27,20 +29,21 @@ nxnative 原生宿主与 MoltenVK。参考实现为本地 `../weixing3` 项目�
 公共仓库在 macOS GitHub Actions 使用 Xcode 26 构建，IPA 为未签名开发包，
 需要自行签名侧载；最低 iOS 26。不要求在 iPhone 上启用 JIT。
 
-源仓库只提交代码、文本清单和认证加密后的固定 NRO 输入。
-NSP、Switch keys、明文 NRO 和游戏资源不会进入 Git 历史。
-构建密钥通过仓库 Secret `PROTOTYPE_GUEST_KEY` 提供。
+源仓库只提交代码、文本清单和认证加密后的固定构建输入。
+NSP、Switch keys、明文 NRO/XEX、游戏生成源码和资源不会进入 Git 历史。
+生产构建使用 Secret `PROTOTYPE_CODEGEN_KEY`；独立 NRO 诊断使用 `PROTOTYPE_GUEST_KEY`。
 详见 [云端构建](docs/github-cloud.md)。
 
-生产移植路线正在把原始 PPC 静态翻译、原生渲染器及 ReXGlue SDK 重新编译为 Apple ARM64，
-以正确处理 Apple 16 KiB 内存页。`build-source-ios.yml` 在 main 更新时自动构建此路线；
+生产路线已在 iPhoneOS SDK 下成功构建，实际 IPA 的 iOS 设备平台标记、全部 53,211 个
+翻译函数、系统动态库依赖、内置资源清单及许可证已独立核验。
+`build-source-ios.yml` 在 main 更新时自动构建此路线；
 `build-ios.yml` 保留为手动触发的原 NRO 启动诊断。两者都不会仅凭编译成功声称游戏可玩。
 
 本地分析工具严格核对当前 NRO 的 SHA-256：
 `16165370c4484394c81a775f48b1b2b47c833cc2bd412727935cb0fb17401330`。
 更换 NRO 后必须重新核对偏移和指令，不能套用现有 hook。
 
-虚拟与实体手柄由 nxnative 前端提供；配置为 `prototype.toml`，
+触控界面沿用 nxnative，触控和 GameController 输入合并到 SDL 虚拟 Xbox 手柄；配置为 `prototype.toml`，
 首次启动复制到 Documents，之后保留玩家修改。存档路径及完整运行行为仍需验证。
 
 ## 致谢

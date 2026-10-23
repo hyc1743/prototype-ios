@@ -2,6 +2,17 @@
 
 目标：公共 GitHub 仓库云端构建、发布 iOS IPA 和每卷不超过 1024 MB 的游戏资源。
 
+2026-10-23：原生源码路线已成功构建并发布开发预发行版 `v0.1.0-native-dev.1`。
+公共仓库为 `hyc1743/prototype-ios`，构建运行 39888136242，提交
+`0745715855fcf40d44c7a9a4059a8201096e7f06`。
+
+IPA 为 25,389,613 字节，SHA-256 为
+`b6183f8120c94d7c9cdab04343c1f88cf63ae5cd12d67622bc0264d1b6924893`。
+独立读取实际 IPA 的 Mach-O 符号表，确认全部 53,211 个翻译函数定义在可执行代码段中；
+平台为 iOS 设备（不是模拟器或 macOS），最低 iOS 26.0，SDK 26.5.0。
+动态依赖均为系统库，资源清单与仓库一致，应用包含 45 份许可证文件。
+Release 附有原始构建报告和独立核验报告。IPA 需要自行签名，尚未验证实机安装／运行。
+
 已完成本地原始 NRO 结构解析、81,220 个 FDE 范围恢复、nxnative 离线指令改写，
 保留 94,740 个 RELR 重定位目标及完整原始只读／数据段。
 平台地址及依据见 `platform-evidence.md`、`services-evidence.md`。
@@ -11,9 +22,10 @@
 `resources-v1` Release 已上传全部 14 卷，GitHub 返回的资产大小和 SHA-256
 已逐卷核对一致。完整本地审计位于 `out/resource-release-verification.json`。
 
-接入了精确构建绑定的 libnx 启动、newlib 文件设备、PCM 音频、手柄输入及
-Vulkan 到 MoltenVK 的解析入口。构建前会运行真实 macOS 原程序启动和原生资源导入测试，
-随后核对 IPA 的 ARM64 Mach-O、三个嵌入 guest 段及资源清单。
+生产路线接入 UIKit 资源导入、SDL3 窗口与虚拟 Xbox 手柄、GameController、
+Documents 配置／日志／存档路径，以及原 SDK 音频和原生 Vulkan/MoltenVK 渲染器。
+原生 Foundation 导入器的 11 项合成资源测试已在 macOS 运行通过，覆盖跨卷还原、
+校验、损坏重试和断点恢复；这不是在 iPhone 上导入完整游戏的执行证据。
 
 尚未证明的项目：iOS 实机启动、Xbox 内存视图映射和异常语义、首帧与完整游戏、
 声音、存档及前后台恢复。单元测试或成功编译不能证明这些项目。
@@ -21,8 +33,10 @@ Vulkan 到 MoltenVK 的解析入口。构建前会运行真实 macOS 原程序�
 
 已根据精确映像和 Apple 内存页语义确认：生产路线需要重新生成并编译原始
 PPC 翻译。实际已生成 157 个 C++ 单元、53,211 个函数；固定 SDK 和 17 个
-依赖的完整准备已成功。本仓库提供 `build-source-ios.yml` 专用 iOS 编译流程，
-仍需以云端真实编译产物和设备执行完成最终验证。原 NRO 宿主目前已实际执行
+依赖的完整准备和 iOS 编译已成功。本仓库提供 `build-source-ios.yml` 专用 iOS 编译流程，
+设备执行和完整游戏验证仍未完成。`probe-source-macos.yml` 用实际资源进行原生 macOS
+运行观察，独立记录输入、截图和日志；macOS 执行不等同于 iPhone 实机执行。
+原 NRO 宿主目前已实际执行
 至 libnx 初始化、游戏主函数和 MoltenVK 实例创建，并已验证平台退出流程。
 先前崩溃的静态 Vulkan 销毁入口修复已通过实际执行，诊断 IPA 的三个嵌入段
 也已逐字节独立核对。这是空资源启动诊断，不构成完整游戏运行证据。
