@@ -123,3 +123,7 @@ IPA 上传必须同时提供 `artifacts/release/` 内的构建报告，包含与
 证明可玩性。`ios_device_execution`、`runtime_verified` 和 `playable_verified`
 保持为 `false`，直到取得相应的设备运行证据。Apple 不提供原 Switch 水面诊断
 截图服务时会明确记录回调不可用，保留原水面诊断模式切换。
+
+`test-apple-platform.yml` 独立编译并运行实际 `fiber_apple.cpp`，两个宿主线程
+重复切换并检查活跃整数／浮点值、栈对齐、TLS 与生命周期。此流程不执行游戏，
+也不声称 iPhone 验证完成。

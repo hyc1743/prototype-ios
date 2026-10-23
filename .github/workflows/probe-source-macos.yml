@@ -17,7 +17,9 @@ jobs:
     env:
       CCACHE_DIR: ${{ github.workspace }}/.tools/ccache-macos
       CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPRESS: 'true'
       CCACHE_MAXSIZE: 3G
+      CCACHE_SLOPPINESS: pch_defines,time_macros
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -60,7 +62,7 @@ jobs:
           python -c 'import os,pathlib,shutil; shutil.rmtree(pathlib.Path(os.environ["RUNNER_TEMP"])/"prototype-codegen",ignore_errors=True); shutil.rmtree("out/mac-source-probe/private",ignore_errors=True)'
       - name: Record compiler cache statistics
         if: always()
-        run: ccache --show-stats
+        run: ccache --show-stats --verbose
       - uses: actions/cache/save@v4
         if: always()
         with:
