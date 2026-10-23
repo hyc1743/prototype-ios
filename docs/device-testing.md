@@ -1,7 +1,9 @@
 # iPhone 测试
 
-当前测试设备由用户提供：iPhone 17 Pro Max、iOS 27。尚未连接到开发电脑，
-也没有取得该设备安装、启动或游戏运行记录。
+当前测试设备由用户提供：iPhone 17 Pro Max、iOS 27。2026-10-23 收到的实机
+日志显示 A19 Pro GPU 已完成 Vulkan 与 guest 内存初始化。用户已确认开场动画
+可播放、菜单可呼出，同时报告动画后黑屏、声音杂音和默认语言不符。
+完整游戏可玩性仍未验证；本地未连接该 iPhone。
 
 ## 签名和安装
 
@@ -11,11 +13,13 @@
 如果设备日志显示地址区间保留／映射失败，签名时使用
 [Prototype.entitlements](../ios/source-port/Prototype.entitlements) 中的
 `com.apple.developer.kernel.extended-virtual-addressing` 能力，并确认最终签名和
-描述文件允许该能力。仅把 plist 放进 IPA 不会赋予权限。当前日志显示的
-`Unable to reserve the 4gb guest address space` 是共享映射句柄创建失败；该日志尚未
+描述文件允许该能力。仅把 plist 放进 IPA 不会赋予权限。早期日志显示的
+`Unable to reserve the 4gb guest address space` 是共享映射句柄创建失败；该日志当时尚未
 证明是扩展地址权限问题。`v0.1.0-native-dev.3` 已改用应用临时目录里的稀疏文件
 作共享后备，并在 `engine.log` 写出文件创建、扩展和后续地址映射的具体系统错误。
-请从该版本 Release 重新签名安装后再测，保留 Documents 中已经解包的 `game/`。
+后续日志已确认该内存后备修正能够进入游戏；升级测试时保留 Documents 中
+已经解包的 `game/`。针对画面、音频、默认语言与图标的修正见
+[native-dev.4 复测说明](native-dev4.md)。
 原 SDK 需要预留从 `0` 到 `0x11FFFFFFF` 的连续 guest 窗口（4.5 GiB 虚拟地址）；
 预留地址空间与实际占用同等大小的物理内存是不同概念。
 
@@ -46,4 +50,4 @@ NRO 宿主不创建本项目的 Xbox guest arena，因此同一签名工具能�
 不同；前者成功启动不能单独证明 Xbox guest 的共享内存布局已在此 IPA 正常工作。
 分享日志前可自行去掉与问题无关的个人路径信息；不需要发送游戏资源或签名私钥。
 
-macOS 开场画面和音频日志已观察到，但 iPhone 上每一项仍需实际执行确认。
+iPhone 开场动画及菜单已有用户反馈；修正后的游戏画面、音频和存档仍需实机复测。
