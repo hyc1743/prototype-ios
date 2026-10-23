@@ -111,7 +111,7 @@ extern "C" uint64_t PrototypeNativeProbeMaxDraws() {
   return prototype_probe_max_draws.load(std::memory_order_relaxed);
 }
 REXCVAR_DEFINE_UINT32(proto_apple_debug_raster, 0, "Prototype",
-                       "Diagnostic only: bit 0 bypasses depth/stencil, bit 1 bypasses culling");
+                       "Diagnostic: bit 0 no depth/stencil, bit 1 no cull, bit 2 solid post, bit 3 fixed post VS");
 
 namespace p2::native {
 namespace shaders {''')
@@ -120,7 +120,34 @@ namespace shaders {''')
     key.depth_test = key.depth_write = key.stencil_test = 0;
   }
   if (REXCVAR_GET(proto_apple_debug_raster) & 2u) key.cull_mode = VK_CULL_MODE_NONE;
+  if ((REXCVAR_GET(proto_apple_debug_raster) & 4u) && ps &&
+      ps->ucode_data_hash() == UINT64_C(0xFEECC8EB051119C6)) {
+    key.tessellation_reserved = (REXCVAR_GET(proto_apple_debug_raster) & 8u) ? 2u : 1u;
+    key.depth_test = key.depth_write = key.stencil_test = 0;
+    key.cull_mode = VK_CULL_MODE_NONE;
+    key.blend[0] = 0x00010001;
+    key.write_masks |= 0xFu;
+  }
   key.layout = (uint64_t(st.counts[0]) << 48)''')
+    text = replace_once(text, '  VkShaderModule water_debug_ps = VK_NULL_HANDLE;',
+        '  VkShaderModule water_debug_ps = VK_NULL_HANDLE;\n'
+        '  VkShaderModule prototype_debug_fullscreen_vs = VK_NULL_HANDLE;')
+    text = replace_once(text, '  if (key.tessellation_reserved == 1) {',
+                        '  if (key.tessellation_reserved == 1 || key.tessellation_reserved == 2) {')
+    text = replace_once(text, '  job.geometry = geometry;\n  job.layout = layout;',
+        '''  if (key.tessellation_reserved == 2) {
+    if (!prototype_debug_fullscreen_vs)
+      prototype_debug_fullscreen_vs = rex::ui::vulkan::util::CreateShaderModule(
+          device, shaders::kFullscreenVs, sizeof(shaders::kFullscreenVs));
+    if (prototype_debug_fullscreen_vs) job.vertex = prototype_debug_fullscreen_vs;
+  }
+  job.geometry = geometry;
+  job.layout = layout;''')
+    text = replace_once(text, '  vkDeviceWaitIdle(vk);\n  textures.Shutdown();',
+        '''  vkDeviceWaitIdle(vk);
+  if (prototype_debug_fullscreen_vs)
+    dfn().vkDestroyShaderModule(vk, prototype_debug_fullscreen_vs, nullptr);
+  textures.Shutdown();''')
     text = replace_once(text, '  // Water debug cycle: advance once a frame after the water appeared (cached setups do not',
         '''  if (std::getenv("PROTOTYPE_NATIVE_DUMP") && frame_draw_count >= 1000) {
     prototype_probe_max_draws.store(frame_draw_count, std::memory_order_relaxed);
@@ -244,10 +271,41 @@ namespace shaders {''')
           translation->Dump(dump, "spirv");
         translation->GetOrCreateShaderModule();
       }''')
-    return capture_pass_source(alias_pass_source(text))
+    text = capture_pass_source(alias_pass_source(text))
+    return replace_once(text, '  // Record.\n  if (!BeginPass(targets)) return skip(14);',
+        '''  if (capture_all && setup.active_ps &&
+      setup.active_ps->ucode_data_hash() == UINT64_C(0xFEECC8EB051119C6)) {
+    const auto* host_system = reinterpret_cast<const SpirvShaderTranslator::SystemConstants*>(
+        stream_mapping + system_offset);
+    const auto* host_vs = reinterpret_cast<const float*>(stream_mapping + vs_float_offset);
+    const auto* host_fetch = reinterpret_cast<const uint32_t*>(stream_mapping + fetch_offset);
+    REXLOG_INFO("[native] APPLEPOST_HOST min={} max={} base={} flags={:08X} bias={} "
+                "ndc {},{},{} + {},{},{} vf95={:08X},{:08X} "
+                "VS0 {},{},{},{} VS1 {},{},{},{} VS2 {},{},{},{} "
+                "VS3 {},{},{},{} VS4 {},{},{},{} VS5 {},{},{},{}",
+        host_system->vertex_index_min, host_system->vertex_index_max,
+        host_system->vertex_base_index, host_system->flags, host_system->color_exp_bias[0],
+        host_system->ndc_scale[0], host_system->ndc_scale[1], host_system->ndc_scale[2],
+        host_system->ndc_offset[0], host_system->ndc_offset[1], host_system->ndc_offset[2],
+        host_fetch[190], host_fetch[191], host_vs[0], host_vs[1], host_vs[2], host_vs[3],
+        host_vs[4], host_vs[5], host_vs[6], host_vs[7], host_vs[8], host_vs[9], host_vs[10], host_vs[11],
+        host_vs[12], host_vs[13], host_vs[14], host_vs[15], host_vs[16], host_vs[17], host_vs[18], host_vs[19],
+        host_vs[20], host_vs[21], host_vs[22], host_vs[23]);
+  }
+  // Record.
+  if (!BeginPass(targets)) return skip(14);''')
 
 
 def audio_source(text):
+    text = replace_once(text, '  SDL_AudioSpec obtained_spec = {};',
+                        '  SDL_AudioSpec obtained_spec = {};\n  int obtained_sample_frames = 0;')
+    text = replace_once(text, 'SDL_GetAudioDeviceFormat(sdl_device, &obtained_spec, NULL)',
+                        'SDL_GetAudioDeviceFormat(sdl_device, &obtained_spec, &obtained_sample_frames)')
+    text = replace_once(text, '  if (!SDL_ResumeAudioDevice(sdl_device)) {',
+        '''  REXAPU_WARN("[audio] device buffer={} sample frames ({:.3f} ms at {} Hz)",
+              obtained_sample_frames, 1000.0 * obtained_sample_frames /
+                  std::max(obtained_spec.freq, 1), obtained_spec.freq);
+  if (!SDL_ResumeAudioDevice(sdl_device)) {''')
     text = replace_once(text, 'void SDLAudioDriver::Pump() {\n  using Clock',
         '''void SDLAudioDriver::Pump() {
 #if defined(__APPLE__)

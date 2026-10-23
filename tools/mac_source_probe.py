@@ -235,7 +235,7 @@ def main():
     parser.add_argument("--seconds", type=int, choices=(60, 120, 180, 300), default=300)
     parser.add_argument("--renderer", choices=("native", "xenos"), default="native")
     parser.add_argument("--safe-native", action="store_true")
-    parser.add_argument("--debug-raster", type=int, choices=(0, 1, 2, 3), default=0)
+    parser.add_argument("--debug-raster", type=int, choices=range(16), default=0)
     parser.add_argument("--metal-fast-math", type=int, choices=(0, 1, 2))
     result = probe(parser.parse_args())
     print(json.dumps(result, indent=2))

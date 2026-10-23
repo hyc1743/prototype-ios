@@ -16,12 +16,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - variant: native-capture
+          - variant: native-post-solid
             renderer: native
-            extra: --metal-fast-math 2
-          - variant: native-precise-math
+            extra: --debug-raster 4
+          - variant: native-post-fixed-vertex
             renderer: native
-            extra: --metal-fast-math 0
+            extra: --debug-raster 12
     runs-on: macos-26
     timeout-minutes: 120
     env:
