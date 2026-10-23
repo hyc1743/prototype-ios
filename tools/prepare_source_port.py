@@ -464,6 +464,12 @@ def prepare(args):
                          '#if defined(__APPLE__)\nextern "C" void RexSwitchScreenshotRequest() __attribute__((weak_import));\n#else\nextern "C" void RexSwitchScreenshotRequest() __attribute__((weak));\n#endif')
     after = replace_once(after, "  RexSwitchPerfSceneFrame(uint32_t(frame_draw_count));",
                          "#if defined(__SWITCH__)\n  RexSwitchPerfSceneFrame(uint32_t(frame_draw_count));\n#endif")
+    # Narrow bitfields are promoted to signed int. Convert before shifting so
+    # the GPU page address remains a uint32_t in both rendering and tracing.
+    after = replace_once(after, "    address = fetch.base_address << 12;",
+                         "    address = uint32_t(fetch.base_address) << 12;")
+    after = replace_once(after, "frontbuffer & 0x1FFFFFFF,fetch.base_address<<12,address,width,height,",
+                         "frontbuffer & 0x1FFFFFFF,uint32_t(fetch.base_address)<<12,address,width,height,")
     renderer.write_text(after, encoding="utf8", newline="\n")
     renderer_diff = diffs / "prototype-native-renderer.patch"
     renderer_diff.write_text("".join(difflib.unified_diff(before.splitlines(True), after.splitlines(True),
