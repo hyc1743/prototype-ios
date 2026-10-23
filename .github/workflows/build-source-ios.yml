@@ -1,6 +1,8 @@
 name: Build Prototype from original translated source
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:

@@ -37,7 +37,8 @@ python tools/github_cloud.py --credential-dir ../super-mario-odyssey-ios publish
 python tools/github_cloud.py --credential-dir ../super-mario-odyssey-ios runs hyc1743/prototype-ios build-ios.yml
 ```
 
-首次 push 可能自动启动工作流；以 `runs` 返回的 `head_sha`、创建时间和运行 ID
+main 的 push 自动启动完整源码工作流 `build-source-ios.yml`；原 NRO 的
+`build-ios.yml` 仅手动触发。以 `runs` 返回的 `head_sha`、创建时间和运行 ID
 确认具体构建。重跑时再调用 `dispatch`。查询暂时超时不表示构建停止，应继续
 查询同一运行 ID。
 

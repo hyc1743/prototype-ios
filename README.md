@@ -33,8 +33,8 @@ NSP、Switch keys、明文 NRO 和游戏资源不会进入 Git 历史。
 详见 [云端构建](docs/github-cloud.md)。
 
 生产移植路线正在把原始 PPC 静态翻译、原生渲染器及 ReXGlue SDK 重新编译为 Apple ARM64，
-以正确处理 Apple 16 KiB 内存页。`build-source-ios.yml` 是此路线的专用构建；
-`build-ios.yml` 保留原 NRO 原生宿主的启动诊断。两者都不会仅凭编译成功声称游戏可玩。
+以正确处理 Apple 16 KiB 内存页。`build-source-ios.yml` 在 main 更新时自动构建此路线；
+`build-ios.yml` 保留为手动触发的原 NRO 启动诊断。两者都不会仅凭编译成功声称游戏可玩。
 
 本地分析工具严格核对当前 NRO 的 SHA-256：
 `16165370c4484394c81a775f48b1b2b47c833cc2bd412727935cb0fb17401330`。

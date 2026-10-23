@@ -50,6 +50,30 @@ def expected_functions(generated):
     return names
 
 
+def ios_device_build_version(image):
+    """Check the executable's target platform, independently of its plist."""
+    macho_sections(image)
+    count = struct.unpack_from("<I", image, 16)[0]
+    offset, versions = 32, []
+    for _ in range(count):
+        command, size = struct.unpack_from("<II", image, offset)
+        if command == 0x32:  # LC_BUILD_VERSION, Apple's mach-o/loader.h
+            if size < 24:
+                raise ValueError("Truncated Mach-O build version")
+            platform, minimum, sdk, tools = struct.unpack_from("<4I", image, offset + 8)
+            if size != 24 + tools * 8:
+                raise ValueError("Invalid Mach-O build tool inventory")
+            versions.append((platform, minimum, sdk))
+        offset += size
+    if len(versions) != 1 or versions[0][0] != 2:  # PLATFORM_IOS; simulator is 7.
+        raise ValueError("Executable must target iOS devices, not macOS or the simulator")
+    _, minimum, sdk = versions[0]
+    if minimum != 26 << 16 or sdk < minimum:
+        raise ValueError("Executable deployment target differs from the declared iOS 26.0 minimum")
+    return {"macho_platform": "iOS", "macho_platform_id": 2,
+            "sdk_version": f"{sdk >> 16}.{(sdk >> 8) & 255}.{sdk & 255}"}
+
+
 def inspect_native_app(app, expected, nm_output, load_commands):
     app = Path(app)
     info = plistlib.loads((app / "Info.plist").read_bytes())
@@ -59,6 +83,7 @@ def inspect_native_app(app, expected, nm_output, load_commands):
         raise ValueError("Native iOS bundle identity or deployment target differs")
     image = (app / "Prototype").read_bytes()
     sections, executable = macho_sections(image)
+    platform = ios_device_build_version(image)
     if struct.unpack_from("<I", image, 12)[0] != 2:
         raise ValueError("Native iOS bundle binary is not an MH_EXECUTE image")
     if executable != ["__TEXT"] or sections.get(("__TEXT", "__text"), {}).get("size", 0) == 0:
@@ -74,7 +99,7 @@ def inspect_native_app(app, expected, nm_output, load_commands):
         source = ROOT / ("ios/resources/" + name if name.endswith("json") else "ios/config/" + name)
         if (app / "dm" / name).read_bytes() != source.read_bytes():
             raise ValueError("Bundled resource manifest/config differs from the reviewed source")
-    return {"arm64": True, "minimum_ios": "26.0", "translated_functions_verified": len(expected),
+    return {"arm64": True, "minimum_ios": "26.0", **platform, "translated_functions_verified": len(expected),
             "system_dynamic_dependencies": dependencies, "executable_sha256": sha256(app / "Prototype")}
 
 

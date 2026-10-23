@@ -281,6 +281,9 @@ static int SDLCALL PrototypeSDLMain(int argc, char **argv) {
             bool watching = SDL_AddEventWatch(GameWindowShown, nullptr);
             NSString *failure = nil;
             int result = EXIT_FAILURE;
+            // The importer releases its temporary idle-timer override when it
+            // finishes. Keep the display awake during controller-only play.
+            UIApplication.sharedApplication.idleTimerDisabled = YES;
             try {
                 result = prototype_game_main(static_cast<int>(arguments.size()), pointers.data());
             } catch (const std::exception &exception) {
@@ -288,6 +291,7 @@ static int SDLCALL PrototypeSDLMain(int argc, char **argv) {
             } catch (...) {
                 failure = @"游戏启动遇到未知异常。";
             }
+            UIApplication.sharedApplication.idleTimerDisabled = NO;
             if (watching) SDL_RemoveEventWatch(GameWindowShown, nullptr);
             fprintf(stderr, "[prototype-source] SDK entry returned %d\n", result);
             if (!failure && result == EXIT_SUCCESS) { SDL_Quit(); return result; }
