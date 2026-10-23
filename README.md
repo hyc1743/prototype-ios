@@ -4,12 +4,15 @@
 原始 PPC 翻译、原生渲染器和 ReXGlue SDK，使用 SDL3/UIKit 与 MoltenVK。
 参考实现为本地 `../weixing3` 项目。
 
-原生 IPA 已发布至 [v0.1.0-native-dev.1](https://github.com/hyc1743/prototype-ios/releases/tag/v0.1.0-native-dev.1)，
+原生 IPA 已发布至 [v0.1.0-native-dev.2](https://github.com/hyc1743/prototype-ios/releases/tag/v0.1.0-native-dev.2)，
 为需要自行签名的开发预发行版。资源分卷已发布至
 [resources-v1](https://github.com/hyc1743/prototype-ios/releases/tag/resources-v1)。
 生成 IPA、通过启动测试与完整游戏可玩性是分别验证的项目；
 完整游戏、iPhone 实机画面、音频及存档尚未验证。构建结果见
 [GitHub Actions](https://github.com/hyc1743/prototype-ios/actions)。
+
+`native-dev.2` 修复预先连接的 SDL 手柄未进入 SDK 的问题。完整资源已在 ARM64
+macOS 观察到开场画面和音频数据推进；iPhone 实机行为仍待验证。
 
 ## 资源
 
