@@ -16,9 +16,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - variant: native-exact-attachments
+          - variant: native-gpu-vertex-readback
             renderer: native
-            extra: --debug-raster 0
+            extra: --post-cycle
     runs-on: macos-26
     timeout-minutes: 120
     env:

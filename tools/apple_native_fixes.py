@@ -186,7 +186,8 @@ namespace shaders {''')
     text = replace_once(text, '  VkShaderModule water_debug_ps = VK_NULL_HANDLE;',
         '  VkShaderModule water_debug_ps = VK_NULL_HANDLE;\n'
         '  VkShaderModule prototype_debug_fullscreen_vs = VK_NULL_HANDLE;\n'
-        '  VkShaderModule prototype_debug_scene_ps = VK_NULL_HANDLE;')
+        '  VkShaderModule prototype_debug_scene_ps = VK_NULL_HANDLE;\n'
+        '  VkShaderModule prototype_debug_vertex_data_ps = VK_NULL_HANDLE;')
     text = replace_once(text, '  if (key.tessellation_reserved == 1) {',
                         '  if (key.tessellation_reserved == 1 || key.tessellation_reserved == 2) {')
     text = replace_once(text, '    if (water_debug_ps) job.pixel = water_debug_ps;',
@@ -213,7 +214,28 @@ namespace shaders {''')
     }
     job.pixel = prototype_debug_scene_ps;
   }
-  if (key.tessellation_reserved == 2) {
+  if (key.tessellation_reserved == 4) {
+    if (!prototype_debug_vertex_data_ps) {
+      std::vector<uint32_t> spirv;
+      if (tessellation::CompileFragmentShader(
+          "#version 450\\nlayout(set=0,binding=0,std430) readonly buffer S{uint words[];};\\n"
+          "layout(set=1,binding=4,std140) uniform F{uvec4 fetch[48];};\\n"
+          "layout(location=0) out vec4 c;\\n"
+          "void main(){uint i=uint(gl_FragCoord.x)/16u;uint v=0u;"
+          "uint base=(fetch[47].z>>2u)&0x7ffffffu;"
+          "if(i==0u)v=fetch[47].z;else if(i==1u)v=fetch[47].w;"
+          "else if(i<26u){uint p=base+i-2u;v=p<uint(words.length())?words[p]:0xDEADBAD0u;}"
+          "c=vec4(v&255u,(v>>8u)&255u,(v>>16u)&255u,(v>>24u)&255u)/255.0;}\\n", spirv))
+        prototype_debug_vertex_data_ps = rex::ui::vulkan::util::CreateShaderModule(
+            device, spirv.data(), spirv.size()*sizeof(uint32_t));
+    }
+    if (!prototype_debug_vertex_data_ps) {
+      REXLOG_ERROR("[native] Pipeline creation failed: diagnostic vertex data shader");
+      return VK_NULL_HANDLE;
+    }
+    job.pixel = prototype_debug_vertex_data_ps;
+  }
+  if (key.tessellation_reserved == 2 || key.tessellation_reserved == 4) {
     if (!prototype_debug_fullscreen_vs)
       prototype_debug_fullscreen_vs = rex::ui::vulkan::util::CreateShaderModule(
           device, shaders::kFullscreenVs, sizeof(shaders::kFullscreenVs));
@@ -233,6 +255,8 @@ namespace shaders {''')
     dfn().vkDestroyShaderModule(vk, prototype_debug_fullscreen_vs, nullptr);
   if (prototype_debug_scene_ps)
     dfn().vkDestroyShaderModule(vk, prototype_debug_scene_ps, nullptr);
+  if (prototype_debug_vertex_data_ps)
+    dfn().vkDestroyShaderModule(vk, prototype_debug_vertex_data_ps, nullptr);
   textures.Shutdown();''')
     text = replace_once(text, '  // Water debug cycle: advance once a frame after the water appeared (cached setups do not',
         '''  if (std::getenv("PROTOTYPE_NATIVE_DUMP") && frame_draw_count >= 1000) {
@@ -244,8 +268,8 @@ namespace shaders {''')
     static const auto scene_started = std::chrono::steady_clock::now();
     const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
         std::chrono::steady_clock::now() - scene_started).count();
-    const uint32_t modes[] = {0, 1, 3, 2};
-    const uint32_t mode = modes[std::min<uint64_t>(uint64_t(seconds / 6), 3)];
+    const uint32_t modes[] = {0, 1, 3, 2, 4};
+    const uint32_t mode = modes[std::min<uint64_t>(uint64_t(seconds / 6), 4)];
     if (mode != prototype_post_probe_mode && !capture_all) {
       prototype_post_probe_mode = mode;
       ++rt_generation;
@@ -364,7 +388,15 @@ namespace shaders {''')
     text = replace_once(text, '    s.pending = true;\n    recording = false;',
                         '    s.pending = true;\n    submission_draws = 0;\n    recording = false;')
     text = replace_once(text, '  SubmitDraw(d);\n  ProfileDraw(d.count);',
-                        '  SubmitDraw(d);\n  ++submission_draws;\n  ProfileDraw(d.count);')
+        '''  SubmitDraw(d);
+  ++submission_draws;
+  if (capture_all && prototype_post_probe_mode == 4 && targets.color[0] && ps &&
+      ps->ucode_data_hash() == UINT64_C(0xFEECC8EB051119C6)) {
+    auto* target = targets.color[0];
+    RecordImageDump(target->image, target->format, 512, 1,
+                    fmt::format("cap{}_vertex_gpu_words", capture_count));
+  }
+  ProfileDraw(d.count);''')
     text = replace_once(text, '      if (ok) translation->GetOrCreateShaderModule();',
         '''      if (ok) {
         if (const char* dump = std::getenv("PROTOTYPE_SPIRV_DUMP"))
