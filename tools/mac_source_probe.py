@@ -114,6 +114,7 @@ def probe(args):
     report["normal_depth_range"] = args.normal_depth_range
     report["static_constants"] = args.static_constants
     report["relax_post_vertex"] = args.relax_post_vertex
+    report["single_thread_recording"] = args.single_thread_recording
     try:
         generated = args.generated.resolve()
         verify_generated(generated)
@@ -175,6 +176,8 @@ def probe(args):
             arguments.append("--proto_apple_static_constants=true")
         if args.relax_post_vertex:
             arguments.append("--proto_apple_relax_post_vertex=true")
+        if args.single_thread_recording:
+            arguments.append("--p2_native_record_thread=false")
         if args.safe_native:
             arguments.extend(["--gpu_specialize_texture_signs=false", "--p2_native_copy_specialization=false",
                 "--p2_native_structured_jumps=false", "--p2_native_binding_revalidate=false",
@@ -259,6 +262,7 @@ def main():
     parser.add_argument("--normal-depth-range", action="store_true")
     parser.add_argument("--static-constants", action="store_true")
     parser.add_argument("--relax-post-vertex", action="store_true")
+    parser.add_argument("--single-thread-recording", action="store_true")
     result = probe(parser.parse_args())
     print(json.dumps(result, indent=2))
     return 0 if result["status"] == "observation_finished" else 1
