@@ -77,13 +77,16 @@ def stop(process):
     if process.poll() is not None:
         return
     try:
-        os.killpg(process.pid, signal.SIGTERM)
+        process.terminate()
         process.wait(timeout=10)
     except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
-        process.wait(timeout=10)
-    except ProcessLookupError:
-        process.wait(timeout=10)
+        try:
+            process.kill()
+            process.wait(timeout=10)
+        except (ProcessLookupError, PermissionError, subprocess.TimeoutExpired):
+            pass
+    except (ProcessLookupError, PermissionError):
+        pass
 
 
 def probe(args):
@@ -98,7 +101,8 @@ def probe(args):
               "status": "failed", "ios_device_execution": False,
               "runtime_verified": False, "playable_verified": False,
               "scope": "Source-native macOS diagnostic with verified resources and ordinary SDL input"}
-    report["renderer_requested"] = "xenos"
+    report["renderer_requested"] = args.renderer
+    report["safe_native"] = args.safe_native
     try:
         generated = args.generated.resolve()
         verify_generated(generated)
@@ -144,7 +148,13 @@ def probe(args):
                      "--cache_root=" + str(cache), "--log_file=" + str(evidence / "engine.log"),
                      "--log_level=info", "--log_flush_level=info", "--p2_frame_diagnostics=true",
                      "--p2_native_occlusion_queries=false", "--audio_dump_output_s=15",
-                     "--audio_dump_output_from_s=10", "--p2_renderer=xenos"]
+                     "--audio_dump_output_from_s=10", "--p2_renderer=" + args.renderer]
+        if args.safe_native:
+            arguments.extend(["--gpu_specialize_texture_signs=false", "--p2_native_copy_specialization=false",
+                "--p2_native_structured_jumps=false", "--p2_native_binding_revalidate=false",
+                "--p2_native_dynamic_buffer_upload=false", "--p2_native_sampled_stable_ranges=false",
+                "--p2_native_depth_words_direct=false", "--p2_native_resolve_xenia_pack=false",
+                "--p2_native_edram_depth_alias_clear=false"])
         shots, process, deadline = [], None, False
         started = time.monotonic()
         with (evidence / "run.log").open("w", encoding="utf8") as output:
@@ -160,15 +170,21 @@ def probe(args):
                         break
                     if elapsed >= next_shot:
                         shot = evidence / f"screen-{next_shot:03d}.png"
-                        captured = subprocess.run(["/usr/sbin/screencapture", "-x", str(shot)], env=env,
-                                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
-                        if captured.returncode == 0 and shot.is_file():
-                            shots.append(shot.name)
+                        try:
+                            captured = subprocess.run(["/usr/sbin/screencapture", "-x", str(shot)], env=env,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+                            if captured.returncode == 0 and shot.is_file():
+                                shots.append(shot.name)
+                        except subprocess.TimeoutExpired:
+                            report.setdefault("screenshot_timeouts", []).append(next_shot)
                         next_shot += 20
                     if elapsed >= next_sample:
-                        subprocess.run(["/usr/bin/sample", str(process.pid), "2", "-file",
+                        try:
+                            subprocess.run(["/usr/bin/sample", str(process.pid), "2", "-file",
                                         str(evidence / f"threads-{next_sample:03d}.txt")],
                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+                        except subprocess.TimeoutExpired:
+                            report.setdefault("sample_timeouts", []).append(next_sample)
                         next_sample += 120
                     time.sleep(0.25)
             finally:
@@ -210,6 +226,8 @@ def main():
     parser.add_argument("--parts", type=Path, default=ROOT / "out/probe-resource-parts")
     parser.add_argument("--download-parts", action="store_true")
     parser.add_argument("--seconds", type=int, choices=(60, 120, 180, 300), default=300)
+    parser.add_argument("--renderer", choices=("native", "xenos"), default="native")
+    parser.add_argument("--safe-native", action="store_true")
     result = probe(parser.parse_args())
     print(json.dumps(result, indent=2))
     return 0 if result["status"] == "observation_finished" else 1
