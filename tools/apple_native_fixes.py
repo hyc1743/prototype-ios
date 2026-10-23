@@ -107,6 +107,7 @@ def renderer_source(text):
   if (ps_hash == UINT64_C(0x3E0AB1A6A7CD8CFB) && !post_dumped_edge) {''')
     text = replace_once(text, 'namespace p2::native {\nnamespace shaders {',
         '''static std::atomic<uint64_t> prototype_probe_max_draws{0};
+static uint32_t prototype_post_probe_mode = 0;
 extern "C" uint64_t PrototypeNativeProbeMaxDraws() {
   return prototype_probe_max_draws.load(std::memory_order_relaxed);
 }
@@ -120,9 +121,10 @@ namespace shaders {''')
     key.depth_test = key.depth_write = key.stencil_test = 0;
   }
   if (REXCVAR_GET(proto_apple_debug_raster) & 2u) key.cull_mode = VK_CULL_MODE_NONE;
-  if ((REXCVAR_GET(proto_apple_debug_raster) & 4u) && ps &&
+  if ((prototype_post_probe_mode || (REXCVAR_GET(proto_apple_debug_raster) & 4u)) && ps &&
       ps->ucode_data_hash() == UINT64_C(0xFEECC8EB051119C6)) {
-    key.tessellation_reserved = (REXCVAR_GET(proto_apple_debug_raster) & 8u) ? 2u : 1u;
+    key.tessellation_reserved = prototype_post_probe_mode ? prototype_post_probe_mode :
+        ((REXCVAR_GET(proto_apple_debug_raster) & 8u) ? 2u : 1u);
     key.depth_test = key.depth_write = key.stencil_test = 0;
     key.cull_mode = VK_CULL_MODE_NONE;
     key.blend[0] = 0x00010001;
@@ -131,27 +133,73 @@ namespace shaders {''')
   key.layout = (uint64_t(st.counts[0]) << 48)''')
     text = replace_once(text, '  VkShaderModule water_debug_ps = VK_NULL_HANDLE;',
         '  VkShaderModule water_debug_ps = VK_NULL_HANDLE;\n'
-        '  VkShaderModule prototype_debug_fullscreen_vs = VK_NULL_HANDLE;')
+        '  VkShaderModule prototype_debug_fullscreen_vs = VK_NULL_HANDLE;\n'
+        '  VkShaderModule prototype_debug_scene_ps = VK_NULL_HANDLE;')
     text = replace_once(text, '  if (key.tessellation_reserved == 1) {',
                         '  if (key.tessellation_reserved == 1 || key.tessellation_reserved == 2) {')
+    text = replace_once(text, '    if (water_debug_ps) job.pixel = water_debug_ps;',
+        '''    if (!water_debug_ps) {
+      REXLOG_ERROR("[native] Pipeline creation failed: diagnostic solid fragment shader");
+      return VK_NULL_HANDLE;
+    }
+    job.pixel = water_debug_ps;''')
     text = replace_once(text, '  job.geometry = geometry;\n  job.layout = layout;',
-        '''  if (key.tessellation_reserved == 2) {
+        '''  if (key.tessellation_reserved == 3) {
+    if (!prototype_debug_scene_ps) {
+      std::vector<uint32_t> spirv;
+      if (tessellation::CompileFragmentShader(
+          "#version 450\\nlayout(set=3,binding=4) uniform texture2DArray scene;\\n"
+          "layout(set=3,binding=10) uniform sampler smp;\\n"
+          "layout(location=0) in vec4 uv;layout(location=0) out vec4 c;\\n"
+          "void main(){c=vec4(texture(sampler2DArray(scene,smp),vec3(uv.xy,0)).rgb,1); }\\n", spirv))
+        prototype_debug_scene_ps = rex::ui::vulkan::util::CreateShaderModule(
+            device, spirv.data(), spirv.size()*sizeof(uint32_t));
+    }
+    if (!prototype_debug_scene_ps) {
+      REXLOG_ERROR("[native] Pipeline creation failed: diagnostic scene fragment shader");
+      return VK_NULL_HANDLE;
+    }
+    job.pixel = prototype_debug_scene_ps;
+  }
+  if (key.tessellation_reserved == 2) {
     if (!prototype_debug_fullscreen_vs)
       prototype_debug_fullscreen_vs = rex::ui::vulkan::util::CreateShaderModule(
           device, shaders::kFullscreenVs, sizeof(shaders::kFullscreenVs));
-    if (prototype_debug_fullscreen_vs) job.vertex = prototype_debug_fullscreen_vs;
+    if (!prototype_debug_fullscreen_vs) {
+      REXLOG_ERROR("[native] Pipeline creation failed: diagnostic fixed vertex shader");
+      return VK_NULL_HANDLE;
+    }
+    job.vertex = prototype_debug_fullscreen_vs;
   }
+  if (key.tessellation_reserved)
+    REXLOG_INFO("[native] APPLEPOST_STAGE pipeline_mode={}", key.tessellation_reserved);
   job.geometry = geometry;
   job.layout = layout;''')
     text = replace_once(text, '  vkDeviceWaitIdle(vk);\n  textures.Shutdown();',
         '''  vkDeviceWaitIdle(vk);
   if (prototype_debug_fullscreen_vs)
     dfn().vkDestroyShaderModule(vk, prototype_debug_fullscreen_vs, nullptr);
+  if (prototype_debug_scene_ps)
+    dfn().vkDestroyShaderModule(vk, prototype_debug_scene_ps, nullptr);
   textures.Shutdown();''')
     text = replace_once(text, '  // Water debug cycle: advance once a frame after the water appeared (cached setups do not',
         '''  if (std::getenv("PROTOTYPE_NATIVE_DUMP") && frame_draw_count >= 1000) {
     prototype_probe_max_draws.store(frame_draw_count, std::memory_order_relaxed);
     if (capture_count == 0) ArmCapture("Apple scene diagnosis");
+  }
+  if (std::getenv("PROTOTYPE_POST_CYCLE") &&
+      prototype_probe_max_draws.load(std::memory_order_relaxed) >= 1000) {
+    static const auto scene_started = std::chrono::steady_clock::now();
+    const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::steady_clock::now() - scene_started).count();
+    const uint32_t modes[] = {0, 1, 3, 2};
+    const uint32_t mode = modes[std::min<uint64_t>(uint64_t(seconds / 6), 3)];
+    if (mode != prototype_post_probe_mode && !capture_all) {
+      prototype_post_probe_mode = mode;
+      ++rt_generation;
+      REXLOG_INFO("[native] APPLEPOST_CYCLE mode={} scene_seconds={}", mode, seconds);
+      ArmCapture(fmt::format("Apple post stage {}", mode).c_str());
+    }
   }
   // Water debug cycle: advance once a frame after the water appeared (cached setups do not''')
     text = replace_once(text,
@@ -279,6 +327,22 @@ namespace shaders {''')
         stream_mapping + system_offset);
     const auto* host_vs = reinterpret_cast<const float*>(stream_mapping + vs_float_offset);
     const auto* host_fetch = reinterpret_cast<const uint32_t*>(stream_mapping + fetch_offset);
+    const auto* host_ps = reinterpret_cast<const float*>(stream_mapping + ps_float_offset);
+    std::string packed_ps;
+    uint32_t packed_index = 0;
+    for (uint32_t word = 0; word < 4; ++word) {
+      uint64_t bits = ps->constant_register_map().float_bitmap[word];
+      uint32_t bit;
+      while (rex::bit_scan_forward(bits, &bit)) {
+        bits &= ~(uint64_t(1) << bit);
+        packed_ps += fmt::format(" c{}=({},{},{},{})", word*64+bit,
+            host_ps[packed_index], host_ps[packed_index+1],
+            host_ps[packed_index+2], host_ps[packed_index+3]);
+        packed_index += 4;
+      }
+    }
+    REXLOG_INFO("[native] APPLEPOST_PS_HOST blend={:08X}{}",
+        r[reg::RB_BLENDCONTROL::rt_register_indices[0]], packed_ps);
     REXLOG_INFO("[native] APPLEPOST_HOST min={} max={} base={} flags={:08X} bias={} "
                 "ndc {},{},{} + {},{},{} vf95={:08X},{:08X} "
                 "VS0 {},{},{},{} VS1 {},{},{},{} VS2 {},{},{},{} "

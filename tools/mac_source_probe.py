@@ -150,6 +150,8 @@ def probe(args):
         native_dump = evidence / "render-targets"
         native_dump.mkdir()
         env["PROTOTYPE_NATIVE_DUMP"] = str(native_dump)
+        if args.post_cycle:
+            env["PROTOTYPE_POST_CYCLE"] = "1"
         arguments = [str(executable), "--game_data_root=" + str(game), "--user_data_root=" + str(saves),
                      "--cache_root=" + str(cache), "--log_file=" + str(evidence / "engine.log"),
                      "--log_level=info", "--log_flush_level=info", "--p2_frame_diagnostics=true",
@@ -237,6 +239,7 @@ def main():
     parser.add_argument("--safe-native", action="store_true")
     parser.add_argument("--debug-raster", type=int, choices=range(16), default=0)
     parser.add_argument("--metal-fast-math", type=int, choices=(0, 1, 2))
+    parser.add_argument("--post-cycle", action="store_true")
     result = probe(parser.parse_args())
     print(json.dumps(result, indent=2))
     return 0 if result["status"] == "observation_finished" else 1

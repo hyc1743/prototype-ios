@@ -16,12 +16,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - variant: native-post-solid
+          - variant: native-post-cycle
             renderer: native
-            extra: --debug-raster 4
-          - variant: native-post-fixed-vertex
-            renderer: native
-            extra: --debug-raster 12
+            extra: --post-cycle
     runs-on: macos-26
     timeout-minutes: 120
     env:
