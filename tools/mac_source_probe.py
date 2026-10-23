@@ -130,7 +130,8 @@ def probe(args):
         arguments = [str(executable), "--game_data_root=" + str(game), "--user_data_root=" + str(saves),
                      "--cache_root=" + str(cache), "--log_file=" + str(evidence / "engine.log"),
                      "--log_level=info", "--log_flush_level=info", "--p2_frame_diagnostics=true",
-                     "--p2_native_occlusion_queries=false"]
+                     "--p2_native_occlusion_queries=false", "--audio_dump_output_s=15",
+                     "--audio_dump_output_from_s=10"]
         shots, process, deadline = [], None, False
         started = time.monotonic()
         with (evidence / "run.log").open("w", encoding="utf8") as output:
@@ -176,6 +177,9 @@ def probe(args):
         (evidence / "spirv-validation.json").write_text(json.dumps(shader_results, indent=2) + "\n", encoding="utf8")
         report["spirv_validation"] = {"available": bool(validator), "shaders": len(shader_results),
                                      "invalid": sum(not r["valid"] for r in shader_results)}
+        audio_dump = build / "audio_output.wav"
+        if audio_dump.is_file():
+            shutil.copyfile(audio_dump, evidence / "audio_output.wav")
         report["status"] = "observation_finished" if deadline or process.returncode == 0 else "process_failed"
         return report
     except (OSError, ValueError, subprocess.SubprocessError) as error:

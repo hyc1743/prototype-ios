@@ -203,6 +203,8 @@ def build(args):
               "app_icon": icon_report,
               "primitive_expansion": "SDK vertex shader fallback",
               "audio_output": "stereo with paced guest callback requests",
+              "apple_submission_draw_limit": 128,
+              "apple_audio_producer_stream": True,
               "native_renderer_sha256": sha256(stage / "prototype/src/native/native_renderer.cpp"),
               "ipa_sha256": sha256(ipa), "ipa_bytes": ipa.stat().st_size, **native}
     (output / "build-report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf8")
