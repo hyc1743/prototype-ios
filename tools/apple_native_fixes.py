@@ -49,6 +49,41 @@ def attachment_pass_source(text):
         '    // match every attachment in this dynamic rendering scope.')
 
 
+def constant_descriptor_source(text):
+    # Consecutive descriptor updates may cross bindings only when the stage
+    # flags agree. These five UBO bindings use different vertex/pixel masks.
+    before = '''  VkWriteDescriptorSet writes[2] = {};
+  writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  writes[0].dstSet = set_shared;
+  writes[0].descriptorCount = shared_binding_count;
+  writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+  writes[0].pBufferInfo = shared_infos.data();
+  writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  writes[1].dstSet = set_constants;
+  writes[1].descriptorCount = SpirvShaderTranslator::kConstantBufferCount;
+  writes[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+  writes[1].pBufferInfo = constant_infos;
+  dfn().vkUpdateDescriptorSets(vk, 2, writes, 0, nullptr);'''
+    after = '''  VkWriteDescriptorSet writes[1 + SpirvShaderTranslator::kConstantBufferCount] = {};
+  writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  writes[0].dstSet = set_shared;
+  writes[0].descriptorCount = shared_binding_count;
+  writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+  writes[0].pBufferInfo = shared_infos.data();
+  for (uint32_t i = 0; i < SpirvShaderTranslator::kConstantBufferCount; ++i) {
+    auto& write = writes[1 + i];
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = set_constants;
+    write.dstBinding = i;
+    write.descriptorCount = 1;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    write.pBufferInfo = &constant_infos[i];
+  }
+  dfn().vkUpdateDescriptorSets(vk, 1 + SpirvShaderTranslator::kConstantBufferCount,
+                              writes, 0, nullptr);'''
+    return replace_once(text, before, after)
+
+
 def exception_source(text):
     text = replace_once(text, '#include <signal.h>', '#include <signal.h>\n#include <unistd.h>')
     return replace_once(text, '''  }
@@ -336,7 +371,7 @@ namespace shaders {''')
           translation->Dump(dump, "spirv");
         translation->GetOrCreateShaderModule();
       }''')
-    text = capture_pass_source(alias_pass_source(attachment_pass_source(text)))
+    text = constant_descriptor_source(capture_pass_source(alias_pass_source(attachment_pass_source(text))))
     return replace_once(text, '  // Record.\n  if (!BeginPass(targets)) return skip(14);',
         '''  if (capture_all && setup.active_ps &&
       setup.active_ps->ucode_data_hash() == UINT64_C(0xFEECC8EB051119C6)) {
@@ -345,6 +380,14 @@ namespace shaders {''')
     const auto* host_vs = reinterpret_cast<const float*>(stream_mapping + vs_float_offset);
     const auto* host_fetch = reinterpret_cast<const uint32_t*>(stream_mapping + fetch_offset);
     const auto* host_ps = reinterpret_cast<const float*>(stream_mapping + ps_float_offset);
+    const uint32_t vertex_base = host_fetch[190] & 0x1FFFFFFCu;
+    if (uint64_t(vertex_base) + 72 <= kStreamSize) {
+      const auto* raw_vertices = reinterpret_cast<const uint32_t*>(stream_mapping + vertex_base);
+      std::string vertices;
+      for (uint32_t i = 0; i < 18; ++i)
+        vertices += fmt::format(" {:08X}", __builtin_bswap32(raw_vertices[i]));
+      REXLOG_INFO("[native] APPLEPOST_VERTEX_HOST{}", vertices);
+    }
     std::string packed_ps;
     uint32_t packed_index = 0;
     for (uint32_t word = 0; word < 4; ++word) {

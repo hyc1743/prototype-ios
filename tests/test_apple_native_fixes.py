@@ -8,10 +8,79 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
 from apple_native_fixes import (audio_source, renderer_source, translator_source,
-                                alias_pass_source, capture_pass_source, attachment_pass_source)
+                                alias_pass_source, capture_pass_source, attachment_pass_source,
+                                constant_descriptor_source)
 
 
 class AppleNativeFixTests(unittest.TestCase):
+    def test_constant_descriptors_do_not_span_incompatible_stage_bindings(self):
+        compiler = shutil.which('g++') or shutil.which('clang++')
+        if not compiler:
+            self.skipTest('C++ compiler unavailable')
+        fixture = r'''
+#include <iostream>
+#include <array>
+#include <cassert>
+#include <cstdint>
+struct SpirvShaderTranslator {static constexpr unsigned kConstantBufferCount=5;};
+constexpr int VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET=1;
+constexpr int VK_DESCRIPTOR_TYPE_STORAGE_BUFFER=2;
+constexpr int VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC=3;
+struct VkDescriptorBufferInfo {int buffer;};
+struct VkWriteDescriptorSet {
+  int sType=0,dstSet=0;unsigned dstBinding=0,descriptorCount=0;int descriptorType=0;
+  const VkDescriptorBufferInfo* pBufferInfo=nullptr;
+};
+struct Functions {
+  int invalid=0,captured=0;std::array<int,5> assigned{};
+  void vkUpdateDescriptorSets(int,unsigned count,const VkWriteDescriptorSet* writes,int,void*) {
+    const int stages[5]={3,1,2,3,3};
+    for(unsigned w=0;w<count;++w) {
+      const auto& write=writes[w];
+      if(!write.dstSet) continue;
+      for(unsigned i=0;i<write.descriptorCount;++i) {
+        auto slot=write.dstBinding+i;
+        assert(slot<5);
+        if(stages[slot]!=stages[write.dstBinding]) ++invalid;
+        assert(write.descriptorType==VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC);
+        assigned[slot]=write.pBufferInfo[i].buffer;++captured;
+      }
+    }
+  }
+} functions;
+Functions& dfn() {return functions;}
+int main() {
+  int vk=0,set_shared=0,set_constants=1;unsigned shared_binding_count=1;
+  std::array<VkDescriptorBufferInfo,1> shared_infos{{{0}}};
+  VkDescriptorBufferInfo constant_infos[5]={{10},{11},{12},{13},{14}};
+  VkWriteDescriptorSet writes[2] = {};
+  writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  writes[0].dstSet = set_shared;
+  writes[0].descriptorCount = shared_binding_count;
+  writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+  writes[0].pBufferInfo = shared_infos.data();
+  writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  writes[1].dstSet = set_constants;
+  writes[1].descriptorCount = SpirvShaderTranslator::kConstantBufferCount;
+  writes[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+  writes[1].pBufferInfo = constant_infos;
+  dfn().vkUpdateDescriptorSets(vk, 2, writes, 0, nullptr);
+  for(unsigned i=0;i<5;++i) assert(functions.assigned[i]==int(10+i));
+  std::cout<<functions.invalid<<":"<<functions.captured;
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            for label, source, expected in [('before', fixture, '2:5'),
+                                             ('after', constant_descriptor_source(fixture), '0:5')]:
+                cpp = directory / (label + '.cpp')
+                cpp.write_text(source)
+                executable = directory / (label + ('.exe' if sys.platform == 'win32' else ''))
+                subprocess.run([compiler, '-std=c++17', str(cpp), '-o', str(executable)],
+                               check=True, capture_output=True)
+                result = subprocess.run([str(executable)], check=True, capture_output=True, text=True)
+                self.assertEqual(result.stdout, expected)
+
     def test_attachment_removal_cannot_reuse_an_incompatible_dynamic_scope(self):
         compiler = shutil.which('g++') or shutil.which('clang++')
         if not compiler:

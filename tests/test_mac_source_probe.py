@@ -7,10 +7,19 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-from mac_source_probe import download_parts, observations, runtime_status
+from mac_source_probe import download_parts, observations, runtime_status, observation_text
 
 
 class SourceProbeTests(unittest.TestCase):
+    def test_log_rotation_cannot_hide_an_earlier_gpu_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'run.log').write_text('entered game\n')
+            (root / 'engine.log').write_text('later frame completed\n')
+            (root / 'engine.1.log').write_text('VK_ERROR_DEVICE_LOST\n')
+            report = observations(observation_text(root))
+            self.assertEqual(runtime_status(report, True, 0), 'runtime_failed')
+
     def test_controlled_exit_cannot_hide_device_loss_or_zero_audio_samples(self):
         report = observations("[audio] SDL in 10 s: 1876 frames with data\n"
                               "[audio] output peak=0 active_samples=0 nonfinite=0\n"

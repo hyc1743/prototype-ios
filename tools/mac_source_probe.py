@@ -49,6 +49,12 @@ def download_parts(destination, manifest):
         print("Verified " + part["name"], flush=True)
 
 
+def observation_text(directory):
+    paths = [directory / "run.log", *sorted(directory.glob("engine*.log"))]
+    return "\n".join(path.read_text(encoding="utf8", errors="replace")
+                     for path in paths if path.is_file())
+
+
 def observations(text):
     return {
         "source_main_entered": "[prototype-mac-probe] entering original source main" in text,
@@ -201,8 +207,7 @@ def probe(args):
             finally:
                 if process is not None:
                     stop(process)
-        text = "\n".join(p.read_text(encoding="utf8", errors="replace") for p in
-                          (evidence / "run.log", evidence / "engine.log") if p.is_file())
+        text = observation_text(evidence)
         report.update(**observations(text), exit_code=process.returncode, controlled_termination=deadline,
                       observed_seconds=round(time.monotonic() - started, 2), screenshots=shots,
                       created_save_files=[p.relative_to(saves).as_posix() for p in saves.rglob("*") if p.is_file()])
