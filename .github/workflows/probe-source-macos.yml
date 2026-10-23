@@ -2,16 +2,35 @@ name: Observe source-native game on macOS
 
 on:
   workflow_dispatch:
+    inputs:
+      profile:
+        description: Runtime renderer comparison
+        type: choice
+        default: direct
+        options:
+          - single-thread
+          - direct
+          - post-cycle
+          - normal-depth
+          - static-constants
+          - relax-post-vertex
+          - strict-post-vertex
 
 permissions:
   contents: read
 
 concurrency:
-  group: prototype-macos-source-probe
+  group: prototype-macos-source-probe-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
   observe:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: native-selected-profile
+            renderer: native
     runs-on: macos-26
     timeout-minutes: 120
     env:
@@ -29,12 +48,14 @@ jobs:
         run: |
           brew install cmake ninja ccache spirv-tools
           python -m pip install -r requirements.txt
+      - name: Check Apple rendering regressions
+        run: python -m unittest discover -s tests -p test_apple_native_fixes.py
       - uses: actions/cache/restore@v4
         with:
           path: |
             .tools/source-port/git-cache
             .tools/ccache-macos
-          key: prototype-macos-source-v1-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}
+          key: prototype-macos-source-v1-${{ runner.arch }}-${{ github.sha }}-${{ matrix.variant }}-${{ github.run_attempt }}
           restore-keys: |
             prototype-macos-source-v1-${{ runner.arch }}-
       - name: Authenticate translated game source
@@ -47,12 +68,31 @@ jobs:
           git -C references/prototype-switch fetch --depth 1 https://github.com/fungalspores/prototype-switch.git 292de4b382dbe335011d8b4f56ec4212df5ef74c
           git -C references/prototype-switch checkout --detach FETCH_HEAD
       - name: Compile and observe with verified resources
-        run: python tools/mac_source_probe.py --generated "$RUNNER_TEMP/prototype-codegen" --download-parts
+        env:
+          PROBE_PROFILE: ${{ inputs.profile }}
+        run: |
+          flags=()
+          case "$PROBE_PROFILE" in
+            single-thread) flags=(--single-thread-recording) ;;
+            direct|"") ;;
+            post-cycle) flags=(--post-cycle) ;;
+            normal-depth) flags=(--normal-depth-range) ;;
+            static-constants) flags=(--static-constants) ;;
+            relax-post-vertex) flags=(--relax-post-vertex) ;;
+            strict-post-vertex) flags=(--strict-post-vertex) ;;
+            *) exit 2 ;;
+          esac
+          python tools/mac_source_probe.py --generated "$RUNNER_TEMP/prototype-codegen" --download-parts --renderer ${{ matrix.renderer }} "${flags[@]}"
+      - name: Seal private shader observations
+        if: always()
+        env:
+          PROTOTYPE_CODEGEN_KEY: ${{ secrets.PROTOTYPE_CODEGEN_KEY }}
+        run: python tools/seal_probe_evidence.py out/mac-source-probe/private/spirv out/mac-source-probe/evidence/shaders.enc
       - name: Upload observations and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Prototype-macOS-source-observation
+          name: Prototype-macOS-source-observation-${{ matrix.variant }}-${{ inputs.profile || 'direct' }}
           path: out/mac-source-probe/evidence/
           if-no-files-found: error
           retention-days: 7
@@ -69,4 +109,4 @@ jobs:
           path: |
             .tools/source-port/git-cache
             .tools/ccache-macos
-          key: prototype-macos-source-v1-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}
+          key: prototype-macos-source-v1-${{ runner.arch }}-${{ github.sha }}-${{ matrix.variant }}-${{ github.run_attempt }}

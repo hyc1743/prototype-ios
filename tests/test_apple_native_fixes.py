@@ -7,10 +7,184 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from apple_native_fixes import audio_source, renderer_source, translator_source, alias_pass_source
+from apple_native_fixes import (audio_source, renderer_source, translator_source,
+                                alias_pass_source, capture_pass_source, attachment_pass_source,
+                                constant_descriptor_source)
 
 
 class AppleNativeFixTests(unittest.TestCase):
+    def test_constant_descriptors_do_not_span_incompatible_stage_bindings(self):
+        compiler = shutil.which('g++') or shutil.which('clang++')
+        if not compiler:
+            self.skipTest('C++ compiler unavailable')
+        fixture = r'''
+#include <iostream>
+#include <array>
+#include <cassert>
+#include <cstdint>
+struct SpirvShaderTranslator {static constexpr unsigned kConstantBufferCount=5;};
+constexpr int VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET=1;
+constexpr int VK_DESCRIPTOR_TYPE_STORAGE_BUFFER=2;
+constexpr int VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC=3;
+struct VkDescriptorBufferInfo {int buffer;};
+struct VkWriteDescriptorSet {
+  int sType=0,dstSet=0;unsigned dstBinding=0,descriptorCount=0;int descriptorType=0;
+  const VkDescriptorBufferInfo* pBufferInfo=nullptr;
+};
+struct Functions {
+  int invalid=0,captured=0;std::array<int,5> assigned{};
+  void vkUpdateDescriptorSets(int,unsigned count,const VkWriteDescriptorSet* writes,int,void*) {
+    const int stages[5]={3,1,2,3,3};
+    for(unsigned w=0;w<count;++w) {
+      const auto& write=writes[w];
+      if(!write.dstSet) continue;
+      for(unsigned i=0;i<write.descriptorCount;++i) {
+        auto slot=write.dstBinding+i;
+        assert(slot<5);
+        if(stages[slot]!=stages[write.dstBinding]) ++invalid;
+        assert(write.descriptorType==VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC);
+        assigned[slot]=write.pBufferInfo[i].buffer;++captured;
+      }
+    }
+  }
+} functions;
+Functions& dfn() {return functions;}
+int main() {
+  int vk=0,set_shared=0,set_constants=1;unsigned shared_binding_count=1;
+  std::array<VkDescriptorBufferInfo,1> shared_infos{{{0}}};
+  VkDescriptorBufferInfo constant_infos[5]={{10},{11},{12},{13},{14}};
+  VkWriteDescriptorSet writes[2] = {};
+  writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  writes[0].dstSet = set_shared;
+  writes[0].descriptorCount = shared_binding_count;
+  writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+  writes[0].pBufferInfo = shared_infos.data();
+  writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  writes[1].dstSet = set_constants;
+  writes[1].descriptorCount = SpirvShaderTranslator::kConstantBufferCount;
+  writes[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+  writes[1].pBufferInfo = constant_infos;
+  dfn().vkUpdateDescriptorSets(vk, 2, writes, 0, nullptr);
+  for(unsigned i=0;i<5;++i) assert(functions.assigned[i]==int(10+i));
+  std::cout<<functions.invalid<<":"<<functions.captured;
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            for label, source, expected in [('before', fixture, '2:5'),
+                                             ('after', constant_descriptor_source(fixture), '0:5')]:
+                cpp = directory / (label + '.cpp')
+                cpp.write_text(source)
+                executable = directory / (label + ('.exe' if sys.platform == 'win32' else ''))
+                subprocess.run([compiler, '-std=c++17', str(cpp), '-o', str(executable)],
+                               check=True, capture_output=True)
+                result = subprocess.run([str(executable)], check=True, capture_output=True, text=True)
+                self.assertEqual(result.stdout, expected)
+
+    def test_attachment_removal_cannot_reuse_an_incompatible_dynamic_scope(self):
+        compiler = shutil.which('g++') or shutil.which('clang++')
+        if not compiler:
+            self.skipTest('C++ compiler unavailable')
+        fixture = r'''
+#include <iostream>
+struct Targets {int color[4];int depth;};
+struct Renderer {
+  bool in_pass=false;Targets pass{};int invalid=0;
+  void BeginPass(const Targets& targets) {
+    if(in_pass) {
+      bool compatible = true;
+      for (unsigned i=0;i<4;++i) {
+      if (targets.color[i] && targets.color[i] != pass.color[i]) compatible = false;
+      }
+    if (targets.depth && targets.depth != pass.depth) compatible = false;
+      if(compatible) return;
+    }
+    pass=targets;in_pass=true;
+  }
+  void Draw(const Targets& pipeline) {
+    BeginPass(pipeline);
+    // Without dynamicRenderingUnusedAttachments, pipeline and scope formats
+    // must agree even when the shader does not use a leftover attachment.
+    bool valid=pass.depth==pipeline.depth;
+    for(unsigned i=0;i<4;++i) valid &= pass.color[i]==pipeline.color[i];
+    invalid += !valid;
+  }
+};
+int main() {
+  Renderer r;
+  r.Draw({{1,2,0,0},3});
+  r.Draw({{1,2,0,0},3}); // exact reuse stays valid
+  r.Draw({{1,0,0,0},3}); // remove MRT1
+  r.Draw({{1,0,0,0},0}); // remove depth for a post pass
+  r.Draw({{0,0,0,0},3}); // depth-only pass must not retain colors
+  std::cout<<r.invalid;
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            for label, source, expected in [('before', fixture, '3'),
+                                             ('after', attachment_pass_source(fixture), '0')]:
+                cpp = directory / (label + '.cpp')
+                cpp.write_text(source)
+                executable = directory / (label + ('.exe' if sys.platform == 'win32' else ''))
+                subprocess.run([compiler, '-std=c++17', str(cpp), '-o', str(executable)],
+                               check=True, capture_output=True)
+                result = subprocess.run([str(executable)], check=True, capture_output=True, text=True)
+                self.assertEqual(result.stdout, expected)
+
+    def test_capture_readbacks_preserve_render_pass_and_bound_state(self):
+        compiler = shutil.which('g++') or shutil.which('clang++')
+        if not compiler:
+            self.skipTest('C++ compiler unavailable')
+        fixture = r'''
+#include <iostream>
+struct Shader {unsigned ucode_data_hash() {return 0;}};
+struct Setup {Shader* active_vs=nullptr;Shader* active_ps=nullptr;} setup;
+bool in_pass=false,bound=false,water_dump_enabled=false;
+bool capture_all=true,post_trace_seconds=false,water_seq_frame=false;
+bool water_raw_pending=false,profile_draws=false,profile_frame=false;
+int post_trace_count=0,frame=1,water_seq_count=0,targets=0;
+void RequestWaterDump() {}
+bool WaterSimTracing() {return true;}
+void PostDump(unsigned) {in_pass=false;bound=false;}
+void TraceSimDraw(unsigned) {PostDump(0);}
+void WaterSequenceDump(unsigned) {PostDump(0);}
+void DumpWaterSimInputs() {PostDump(0);}
+void skip(int) {}
+bool BeginPass(int) {in_pass=true;return true;}
+void Draw() {
+  unsigned draw_count=6;
+  // Record.
+  if (!BeginPass(targets)) return skip(14);
+  struct {unsigned count;} d{draw_count};
+  bound=true;
+  if (water_dump_enabled && setup.active_vs &&
+      setup.active_vs->ucode_data_hash() == 0) RequestWaterDump();
+  if (WaterSimTracing()) {
+    if (((post_trace_seconds && post_trace_count == 2) || capture_all) && setup.active_ps)
+      PostDump(setup.active_ps->ucode_data_hash());
+    TraceSimDraw(d.count);
+  }
+  if (water_seq_frame && frame == water_seq_frame && water_seq_count < 24)
+    WaterSequenceDump(d.count);
+  if (water_raw_pending) DumpWaterSimInputs();
+  if (profile_draws && profile_frame) {}
+  std::cout<<in_pass<<bound;
+}
+int main() {Draw();}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            for label, source, expected in [('before', fixture, '00'),
+                                             ('after', capture_pass_source(fixture), '11')]:
+                cpp = directory / (label + '.cpp')
+                cpp.write_text(source)
+                executable = directory / (label + ('.exe' if sys.platform == 'win32' else ''))
+                subprocess.run([compiler, '-std=c++17', str(cpp), '-o', str(executable)],
+                               check=True, capture_output=True)
+                result = subprocess.run([str(executable)], check=True, capture_output=True, text=True)
+                self.assertEqual(result.stdout, expected)
+
     def test_alias_clear_cannot_leave_the_draw_outside_a_render_pass(self):
         compiler = shutil.which('g++') or shutil.which('clang++')
         if not compiler:

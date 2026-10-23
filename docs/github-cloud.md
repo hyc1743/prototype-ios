@@ -1,12 +1,13 @@
 # GitHub 云端构建
 
-2026-10-23 已通过 GitHub API 只读验证：认证账号为 `hyc1743`
-（用户 ID `27811593`）；`hyc1743/prototype-ios` 当时返回 HTTP 404，尚未创建。
-已有 `../super-mario-odyssey-ios` 目录的 Git Credential Manager 配置可用于认证。
+2026-10-24 已重新通过 GitHub API 验证账号 `hyc1743`，仓库为
+`hyc1743/prototype-ios`。当前项目的局部 Git 配置已指定 Git Credential Manager
+账户 `hyc1743`，可以直接使用 `--credential-dir .`，无需其他项目目录。
+此前引用的 `../super-mario-odyssey-ios` 已不存在；文中旧示例的认证目录应改为 `.`。
 
 ```powershell
 python -m pip install -r requirements.txt
-python tools/github_cloud.py --credential-dir ../super-mario-odyssey-ios identity
+python tools/github_cloud.py --credential-dir . identity
 ```
 
 认证从 `GH_TOKEN`、`GITHUB_TOKEN` 或非交互 Git Credential Manager 获取。

@@ -49,6 +49,12 @@ def download_parts(destination, manifest):
         print("Verified " + part["name"], flush=True)
 
 
+def observation_text(directory):
+    paths = [directory / "run.log", *sorted(directory.glob("engine*.log"))]
+    return "\n".join(path.read_text(encoding="utf8", errors="replace")
+                     for path in paths if path.is_file())
+
+
 def observations(text):
     return {
         "source_main_entered": "[prototype-mac-probe] entering original source main" in text,
@@ -58,20 +64,35 @@ def observations(text):
         "sdk_controller_open_observed": "SDL OnControllerDeviceAdded: connection order" in text,
         "audio_data_frames_reported": sum(int(n) for n in re.findall(r"\[audio\] SDL in 10 s: (\d+) frames with data", text)),
         "pipeline_failure_lines": [line for line in text.splitlines() if "Pipeline creation failed" in line][:20],
+        "device_failure_lines": [line for line in text.splitlines()
+            if any(marker in line for marker in ("Lost VkDevice", "VK_ERROR_DEVICE_LOST",
+                "vkQueueSubmit failed", "unhandled host fault"))][:20],
+        "audio_nonzero_output_observed": any(float(value) > 0.00001 for value in
+            re.findall(r"\[audio\] output peak=([0-9.eE+-]+)", text)),
     }
+
+
+def runtime_status(report, controlled_termination, exit_code):
+    if (report.get("device_failure_lines") or report.get("pipeline_failure_lines") or
+            report.get("spirv_validation", {}).get("invalid", 0)):
+        return "runtime_failed"
+    return "observation_finished" if controlled_termination or exit_code == 0 else "process_failed"
 
 
 def stop(process):
     if process.poll() is not None:
         return
     try:
-        os.killpg(process.pid, signal.SIGTERM)
+        process.terminate()
         process.wait(timeout=10)
     except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
-        process.wait(timeout=10)
-    except ProcessLookupError:
-        process.wait(timeout=10)
+        try:
+            process.kill()
+            process.wait(timeout=10)
+        except (ProcessLookupError, PermissionError, subprocess.TimeoutExpired):
+            pass
+    except (ProcessLookupError, PermissionError):
+        pass
 
 
 def probe(args):
@@ -86,6 +107,14 @@ def probe(args):
               "status": "failed", "ios_device_execution": False,
               "runtime_verified": False, "playable_verified": False,
               "scope": "Source-native macOS diagnostic with verified resources and ordinary SDL input"}
+    report["renderer_requested"] = args.renderer
+    report["safe_native"] = args.safe_native
+    report["debug_raster"] = args.debug_raster
+    report["post_cycle"] = args.post_cycle
+    report["normal_depth_range"] = args.normal_depth_range
+    report["static_constants"] = args.static_constants
+    report["relax_post_vertex"] = not args.strict_post_vertex
+    report["single_thread_recording"] = args.single_thread_recording
     try:
         generated = args.generated.resolve()
         verify_generated(generated)
@@ -124,14 +153,39 @@ def probe(args):
         config = out / "private/prototype.toml"
         shutil.copyfile(ROOT / "ios/config/prototype.toml", config)
         env["PROTOTYPE_CONFIG_PATH"] = str(config)
+        if args.metal_fast_math is not None:
+            env["MVK_CONFIG_FAST_MATH_ENABLED"] = str(args.metal_fast_math)
+        report["metal_fast_math"] = env.get("MVK_CONFIG_FAST_MATH_ENABLED", "default")
         shader_dump = out / "private/spirv"
         shader_dump.mkdir()
         env["PROTOTYPE_SPIRV_DUMP"] = str(shader_dump)
+        native_dump = evidence / "render-targets"
+        native_dump.mkdir()
+        env["PROTOTYPE_NATIVE_DUMP"] = str(native_dump)
+        if args.post_cycle:
+            env["PROTOTYPE_POST_CYCLE"] = "1"
         arguments = [str(executable), "--game_data_root=" + str(game), "--user_data_root=" + str(saves),
                      "--cache_root=" + str(cache), "--log_file=" + str(evidence / "engine.log"),
                      "--log_level=info", "--log_flush_level=info", "--p2_frame_diagnostics=true",
                      "--p2_native_occlusion_queries=false", "--audio_dump_output_s=15",
-                     "--audio_dump_output_from_s=10"]
+                     "--audio_dump_output_from_s=10", "--p2_renderer=" + args.renderer]
+        arguments.append("--proto_apple_debug_raster=" + str(args.debug_raster))
+        if args.normal_depth_range:
+            arguments.append("--proto_apple_normal_depth=true")
+        if args.static_constants:
+            arguments.append("--proto_apple_static_constants=true")
+        if args.relax_post_vertex:
+            arguments.append("--proto_apple_relax_post_vertex=true")
+        elif args.strict_post_vertex:
+            arguments.append("--proto_apple_relax_post_vertex=false")
+        if args.single_thread_recording:
+            arguments.append("--p2_native_record_thread=false")
+        if args.safe_native:
+            arguments.extend(["--gpu_specialize_texture_signs=false", "--p2_native_copy_specialization=false",
+                "--p2_native_structured_jumps=false", "--p2_native_binding_revalidate=false",
+                "--p2_native_dynamic_buffer_upload=false", "--p2_native_sampled_stable_ranges=false",
+                "--p2_native_depth_words_direct=false", "--p2_native_resolve_xenia_pack=false",
+                "--p2_native_edram_depth_alias_clear=false"])
         shots, process, deadline = [], None, False
         started = time.monotonic()
         with (evidence / "run.log").open("w", encoding="utf8") as output:
@@ -147,22 +201,27 @@ def probe(args):
                         break
                     if elapsed >= next_shot:
                         shot = evidence / f"screen-{next_shot:03d}.png"
-                        captured = subprocess.run(["/usr/sbin/screencapture", "-x", str(shot)], env=env,
-                                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
-                        if captured.returncode == 0 and shot.is_file():
-                            shots.append(shot.name)
+                        try:
+                            captured = subprocess.run(["/usr/sbin/screencapture", "-x", str(shot)], env=env,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+                            if captured.returncode == 0 and shot.is_file():
+                                shots.append(shot.name)
+                        except subprocess.TimeoutExpired:
+                            report.setdefault("screenshot_timeouts", []).append(next_shot)
                         next_shot += 20
                     if elapsed >= next_sample:
-                        subprocess.run(["/usr/bin/sample", str(process.pid), "2", "-file",
+                        try:
+                            subprocess.run(["/usr/bin/sample", str(process.pid), "2", "-file",
                                         str(evidence / f"threads-{next_sample:03d}.txt")],
                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+                        except subprocess.TimeoutExpired:
+                            report.setdefault("sample_timeouts", []).append(next_sample)
                         next_sample += 120
                     time.sleep(0.25)
             finally:
                 if process is not None:
                     stop(process)
-        text = "\n".join(p.read_text(encoding="utf8", errors="replace") for p in
-                          (evidence / "run.log", evidence / "engine.log") if p.is_file())
+        text = observation_text(evidence)
         report.update(**observations(text), exit_code=process.returncode, controlled_termination=deadline,
                       observed_seconds=round(time.monotonic() - started, 2), screenshots=shots,
                       created_save_files=[p.relative_to(saves).as_posix() for p in saves.rglob("*") if p.is_file()])
@@ -180,7 +239,7 @@ def probe(args):
         audio_dump = build / "audio_output.wav"
         if audio_dump.is_file():
             shutil.copyfile(audio_dump, evidence / "audio_output.wav")
-        report["status"] = "observation_finished" if deadline or process.returncode == 0 else "process_failed"
+        report["status"] = runtime_status(report, deadline, process.returncode)
         return report
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         report["error"] = str(error)
@@ -197,6 +256,17 @@ def main():
     parser.add_argument("--parts", type=Path, default=ROOT / "out/probe-resource-parts")
     parser.add_argument("--download-parts", action="store_true")
     parser.add_argument("--seconds", type=int, choices=(60, 120, 180, 300), default=300)
+    parser.add_argument("--renderer", choices=("native", "xenos"), default="native")
+    parser.add_argument("--safe-native", action="store_true")
+    parser.add_argument("--debug-raster", type=int, choices=range(16), default=0)
+    parser.add_argument("--metal-fast-math", type=int, choices=(0, 1, 2))
+    parser.add_argument("--post-cycle", action="store_true")
+    parser.add_argument("--normal-depth-range", action="store_true")
+    parser.add_argument("--static-constants", action="store_true")
+    vertex_math = parser.add_mutually_exclusive_group()
+    vertex_math.add_argument("--relax-post-vertex", action="store_true")
+    vertex_math.add_argument("--strict-post-vertex", action="store_true")
+    parser.add_argument("--single-thread-recording", action="store_true")
     result = probe(parser.parse_args())
     print(json.dumps(result, indent=2))
     return 0 if result["status"] == "observation_finished" else 1
