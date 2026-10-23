@@ -461,7 +461,19 @@ def prepare(args):
     after = replace_once(before, 'extern "C" void RexSwitchPerfSceneFrame(uint32_t draws);',
                          '#if defined(__SWITCH__)\nextern "C" void RexSwitchPerfSceneFrame(uint32_t draws);\n#endif')
     after = replace_once(after, 'extern "C" void RexSwitchScreenshotRequest() __attribute__((weak));',
-                         '#if defined(__APPLE__)\nextern "C" void RexSwitchScreenshotRequest() __attribute__((weak_import));\n#else\nextern "C" void RexSwitchScreenshotRequest() __attribute__((weak));\n#endif')
+                         '#if !defined(__APPLE__)\nextern "C" void RexSwitchScreenshotRequest() __attribute__((weak));\n#endif')
+    # Mach-O weak_import still needs a linked provider. The original callback
+    # is optional and has no Apple implementation; preserve water-debug mode
+    # cycling while reporting that its Switch screenshot service is absent.
+    after = replace_once(after,
+                         '    if (RexSwitchScreenshotRequest) RexSwitchScreenshotRequest();\n'
+                         '    REXLOG_INFO("[native] Water debug: screenshot of mode {}", water_debug_mode);',
+                         '#if defined(__APPLE__)\n'
+                         '    REXLOG_WARN("[native] Water debug: screenshot callback unavailable (mode {})", water_debug_mode);\n'
+                         '#else\n'
+                         '    if (RexSwitchScreenshotRequest) RexSwitchScreenshotRequest();\n'
+                         '    REXLOG_INFO("[native] Water debug: screenshot of mode {}", water_debug_mode);\n'
+                         '#endif')
     after = replace_once(after, "  RexSwitchPerfSceneFrame(uint32_t(frame_draw_count));",
                          "#if defined(__SWITCH__)\n  RexSwitchPerfSceneFrame(uint32_t(frame_draw_count));\n#endif")
     # Narrow bitfields are promoted to signed int. Convert before shifting so

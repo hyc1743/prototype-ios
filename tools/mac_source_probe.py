@@ -113,8 +113,10 @@ def probe(args):
         parts = args.parts.resolve()
         if args.download_parts:
             download_parts(parts, manifest)
-        game = out / "private/game"
-        report["resources"] = verify(parts, manifest, restore=game)
+        # Manifest paths already start with game/, matching the importer layout.
+        private = out / "private"
+        game = private / "game"
+        report["resources"] = verify(parts, manifest, restore=private)
         saves, cache = out / "private/saves", out / "private/cache"
         saves.mkdir(); cache.mkdir()
         config = out / "private/prototype.toml"
