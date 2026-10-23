@@ -152,6 +152,12 @@ def patch_sources(source, profile, runtime):
     make = replace_once(make, "SRC=main.c loader.c", f"SRC={names} main.c loader.c")
     make = replace_once(make, "../gfx/vk/*.m", "")
     (host / "Makefile").write_text(make, encoding="utf8")
+    svc = host / "hle_svc.c"
+    svc.write_text(replace_once(svc.read_text(encoding="utf8"),
+        "    mem_init();\n    if (svc_thread(num, regs)) return regs[0];",
+        "    mem_init();\n    extern int prototype_platform_svc(int, uint64_t *);\n"
+        "    if (prototype_platform_svc(num, regs)) return regs[0];\n"
+        "    if (svc_thread(num, regs)) return regs[0];"), encoding="utf8")
     hid = (host / "hle_hid.c").read_text(encoding="utf8")
     hid += '''
 /* Prototype adapter: sample the real virtual/physical controller merge and latches. */

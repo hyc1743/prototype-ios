@@ -316,6 +316,13 @@
       "symbol": "hidSendVibrationValues",
       "expected_original": "fd7bbda9fd030091f35301a9f403022a",
       "evidence": "tools/analyze_services.py and SDK source call correlation"
+    },
+    {
+      "offset": 40531616,
+      "slot": 1067,
+      "symbol": "prototype_platform_exit",
+      "expected_original": "fd7bb9a9fd030091e03f00b945ff6697",
+      "evidence": "SDK main0x58510 termination calls0x26a76a0, bounded FDE132; flush+__libnx_exit0x2d07fe0"
     }
   ]
 }

@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <setjmp.h>
 
 extern uint64_t svc_dispatch(int, uint64_t *, uint64_t);
 extern void prototype_bind_guest_hooks(uint8_t *, size_t);
@@ -17,6 +18,13 @@ typedef struct { uint32_t key, flags; uint64_t value[2]; } ConfigEntry;
 _Static_assert(sizeof(ConfigEntry) == 24, "libnx homebrew ABI");
 static uint8_t *guest_base;
 static _Atomic(void (*)(const char *)) error_callback;
+static _Thread_local jmp_buf exit_point;
+static _Thread_local int exit_point_ready, exit_result;
+static void platform_exit(int result) {
+    if (!exit_point_ready) pthread_exit((void *)(intptr_t)result);
+    exit_result = result;
+    longjmp(exit_point, 1);
+}
 static void loader_return(uint64_t result) {
     fprintf(stderr, "[prototype] libnx returned %#llx\n", (unsigned long long)result);
     pthread_exit((void *)(uintptr_t)result);
@@ -29,7 +37,7 @@ int prototype_libnx_boot(uint8_t *base, size_t size, uint32_t handle, int argc, 
     size_t heap_size = 2048ull << 20;
     char executable[4096], command_line[4100];
     const char *documents = getenv("PROTOTYPE_DOCUMENTS_ROOT");
-    snprintf(executable, sizeof executable, "%s/prototype.nro", documents ? documents : ".");
+    snprintf(executable, sizeof executable, "sdmc:/switch/prototype-nx/prototype.nro");
     snprintf(command_line, sizeof command_line, "\"%s\"", executable);
     registers[1] = heap_size;
     svc_dispatch(1, registers, 0);
@@ -50,8 +58,16 @@ int prototype_libnx_boot(uint8_t *base, size_t size, uint32_t handle, int argc, 
     char *arguments[] = {executable, NULL};
     (void)argc; (void)argv;
     fprintf(stderr, "[prototype] entering original main +0x58510\n");
-    int result = ((int (*)(int, char **))(base + 0x58510))(1, arguments);
-    fprintf(stderr, "[prototype] original main returned %d\n", result);
+    int result;
+    exit_point_ready = 1;
+    if (!setjmp(exit_point)) {
+        result = ((int (*)(int, char **))(base + 0x58510))(1, arguments);
+        fprintf(stderr, "[prototype] original main returned %d\n", result);
+    } else {
+        result = exit_result;
+        fprintf(stderr, "[prototype] original main exited %d via native platform\n", result);
+    }
+    exit_point_ready = 0;
     return result;
 }
 void prototype_libnx_app_init(void) {
@@ -123,6 +139,7 @@ void *prototype_libnx_resolve(const char *name) {
 #define ENTRY(symbol, fn) if (!strcmp(name, symbol)) return (void *)fn
     ENTRY("prototype_libnx_app_init", prototype_libnx_app_init);
     ENTRY("prototype_find_device", prototype_find_device);
+    ENTRY("prototype_platform_exit", platform_exit);
     ENTRY("prototype_success", success);
     ENTRY("prototype_unavailable", unavailable);
     ENTRY("prototype_application_type", application_type);
@@ -163,4 +180,21 @@ void *prototype_libnx_resolve(const char *name) {
     if (!strncmp(name, "hidGetNpadStates", 16)) return (void *)hid_states;
 #undef ENTRY
     return prototype_audio_resolve(name);
+}
+
+/* These Horizon services have no session on Apple. Report their failure;
+ * returning success would hand libnx uninitialized handles and IPC outputs. */
+int prototype_platform_svc(int number, uint64_t *r) {
+    switch (number) {
+    case 0x1f: case 0x21: case 0x22:
+        r[0] = 0xF601; r[1] = 0; return 1;
+    case 0x30: {
+        const uint64_t limits[] = {0xCD500000, 256, 4096, 128, 1024};
+        if (r[2] >= sizeof limits / sizeof limits[0]) r[0] = 0xF601;
+        else { r[1] = limits[r[2]]; r[0] = 0; }
+        return 1;
+    }
+    case 0x31: r[0] = 0; r[1] = 0; return 1;
+    default: return 0;
+    }
 }

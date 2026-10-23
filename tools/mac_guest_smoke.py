@@ -76,7 +76,7 @@ def windowed_frontend(text):
 def runtime_evidence(log, exit_code):
     initialized = re.search(r"^\[prototype\] original libnx init completed\r?$", log, re.MULTILINE)
     entered = re.search(r"^\[prototype\] entering original main \+0x58510\r?$", log, re.MULTILINE)
-    returned = re.search(r"^\[prototype\] original main returned (-?\d+)\r?$", log, re.MULTILINE)
+    returned = re.search(r"^\[prototype\] original main (?:returned|exited) (-?\d+)(?: via native platform)?\r?$", log, re.MULTILINE)
     crash = re.search(r"\[dm\] CRASH sig=|\[RED\] watchdog:|EXC_BAD_ACCESS|Segmentation fault|Abort trap", log)
     checks = {
         "libnx_initialized": initialized is not None,
@@ -163,7 +163,8 @@ def run_smoke(staged, moltenvk, prefix, timeout=120, windowed=False, game_root=N
         saves.mkdir(); temporary.mkdir()
         env.update(PROTOTYPE_GAME_ROOT=str(game), PROTOTYPE_SAVE_ROOT=str(saves),
                    PROTOTYPE_DOCUMENTS_ROOT=str(state), PROTOTYPE_FS_TRACE="1",
-                   DM_ROMFS=str(game), DM_SAVE=str(saves), DM_TEMP=str(temporary), DM_AUDIO="1", DM_SVC="1")
+                   DM_ROMFS=str(game), DM_SAVE=str(saves), DM_TEMP=str(temporary), DM_AUDIO="1", DM_SVC="1",
+                   DM_WATCH="45", DM_WATCH_STALL="45")
         report.update(guest_sha256=stage["guest_sha256"], patched_sha256=digest(patched),
                       hook_count=stage["hook_count"], host_sha256=digest(host / "dmhost"), compiled=True)
         with run_log.open("w", encoding="utf8") as output:
