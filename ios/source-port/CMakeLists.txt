@@ -80,6 +80,9 @@ else()
     add_executable(prototype ${PROTOTYPE_APP_SOURCES})
 endif()
 target_sources(prototype PRIVATE "${REXSDK_DIR}/src/ui/windowed_app_main_sdl.cpp" "${REXSDK_DIR}/src/ui/rex_app.cpp")
+# Match the SDK host helper: its directory-scoped version definition does not
+# reach this application target, which compiles rex_app.cpp in the parent scope.
+target_compile_definitions(prototype PRIVATE REXGLUE_BUILD_CONFIG="$<CONFIG>")
 if(PROTOTYPE_APPLE_ENTRY_SOURCE)
     if(NOT EXISTS "${PROTOTYPE_APPLE_ENTRY_SOURCE}")
         message(FATAL_ERROR "PROTOTYPE_APPLE_ENTRY_SOURCE does not exist")
