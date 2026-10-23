@@ -1,0 +1,45 @@
+name: Test Apple native fiber ABI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fiber:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - uses: actions/cache@v4
+        with:
+          path: .tools/source-port/git-cache
+          key: prototype-platform-source-a85b0b419ec3e332165ae1617c980bd399856a44
+      - name: Authenticate translated source input
+        env:
+          PROTOTYPE_CODEGEN_KEY: ${{ secrets.PROTOTYPE_CODEGEN_KEY }}
+        run: python tools/ci_codegen.py open ci-inputs/codegen.enc "$RUNNER_TEMP/prototype-codegen"
+      - name: Fetch reviewed original source
+        run: |
+          git init references/prototype-switch
+          git -C references/prototype-switch fetch --depth 1 https://github.com/fungalspores/prototype-switch.git 292de4b382dbe335011d8b4f56ec4212df5ef74c
+          git -C references/prototype-switch checkout --detach FETCH_HEAD
+      - name: Execute iOS cooperative fiber on ARM64 macOS
+        run: python tools/apple_platform_smoke.py --generated "$RUNNER_TEMP/prototype-codegen"
+      - name: Upload ABI execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Prototype-Apple-fiber-evidence
+          path: out/apple-platform/evidence/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove decrypted source and prepared copy
+        if: always()
+        run: |
+          python -c 'import os,pathlib,shutil; shutil.rmtree(pathlib.Path(os.environ["RUNNER_TEMP"])/"prototype-codegen",ignore_errors=True); shutil.rmtree("out/apple-platform/staged",ignore_errors=True)'
