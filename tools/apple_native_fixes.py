@@ -77,6 +77,8 @@ def translator_source(text):
 def renderer_source(text):
     text = replace_once(text, '#include "native_geometry_shaders.h"',
                         '#include "native_geometry_shaders.h"\n#include "PrototypePrimitiveIndices.h"')
+    text = replace_once(text, '  water_dump_enabled = REXCVAR_GET(p2_native_water_dump);',
+        '  water_dump_enabled = REXCVAR_GET(p2_native_water_dump) || std::getenv("PROTOTYPE_NATIVE_DUMP");')
     text = replace_once(text, 'namespace p2::native {\nnamespace shaders {',
         '''static std::atomic<uint64_t> prototype_probe_max_draws{0};
 extern "C" uint64_t PrototypeNativeProbeMaxDraws() {
