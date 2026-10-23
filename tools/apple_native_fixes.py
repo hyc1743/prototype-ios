@@ -164,6 +164,20 @@ def renderer_source(text):
                     ? frame - source_dest->last_written_frame : UINT64_MAX);
   }
   stats().frame_draws = frame_draw_count;''')
+    text = replace_once(text, '           frame_texture_ns = 0, frame_draw_count = 0, frame_stream_wait_ns = 0;',
+        '           frame_texture_ns = 0, frame_draw_count = 0, frame_stream_wait_ns = 0;\n'
+        '  uint32_t submission_draws = 0;')
+    text = replace_once(text, 'void Renderer::Impl::Draw(const uint32_t* immediate_indices, uint32_t immediate_index_words) {',
+        '''void Renderer::Impl::Draw(const uint32_t* immediate_indices, uint32_t immediate_index_words) {
+#if defined(__APPLE__)
+  // A full scene may contain thousands of draws. Keep each Metal command
+  // buffer bounded so the first gameplay frame cannot trip the watchdog.
+  if (submission_draws >= 128) Submit();
+#endif''')
+    text = replace_once(text, '    s.pending = true;\n    recording = false;',
+                        '    s.pending = true;\n    submission_draws = 0;\n    recording = false;')
+    text = replace_once(text, '  SubmitDraw(d);\n  ProfileDraw(d.count);',
+                        '  SubmitDraw(d);\n  ++submission_draws;\n  ProfileDraw(d.count);')
     text = replace_once(text, '      if (ok) translation->GetOrCreateShaderModule();',
         '''      if (ok) {
         if (const char* dump = std::getenv("PROTOTYPE_SPIRV_DUMP"))
@@ -183,6 +197,41 @@ def audio_source(text):
   desired_spec.channels = frame_channels_;
 #endif
   sdl_device_channels_ = uint8_t(desired_spec.channels);''')
+    text = text.replace('                                          SDLCallback, this);',
+        '''#if defined(__APPLE__)
+                                          REXCVAR_GET(audio_sdl_pump) ? nullptr : SDLCallback, this);
+#else
+                                          SDLCallback, this);
+#endif''')
+    text = replace_once(text, '    size_t in_queue;\n    {',
+        '''    size_t in_queue;
+#if defined(__APPLE__)
+    const int queued_bytes = SDL_GetAudioStreamQueued(sdl_stream_);
+    if (queued_bytes < 0) break;
+    in_queue = size_t(queued_bytes) / (channel_samples_ * sdl_device_channels_ * sizeof(float));
+#else
+    {''')
+    text = replace_once(text, '      in_queue = frames_queued_.size();\n    }',
+                        '      in_queue = frames_queued_.size();\n    }\n#endif')
+    text = replace_once(text, '  float* output_frame;\n  {',
+        '''#if defined(__APPLE__)
+  if (active_pump_.load(std::memory_order_relaxed)) {
+    // Produce directly into SDL's thread-safe stream. Waiting until the
+    // realtime device callback to pop a guest queue inserts silent blocks
+    // even when the guest finishes immediately after that callback.
+    std::array<float, channel_samples_ * 2> stereo;
+    if (REXCVAR_GET(audio_mute)) stereo.fill(0.0f);
+    else conversion::sequential_6_BE_to_interleaved_2_LE(
+        stereo.data(), input_frame, channel_samples_, GetStereoFold(), GetOutputGain());
+    if (!SDL_PutAudioStreamData(sdl_stream_, stereo.data(), int(sizeof(stereo))))
+      REXAPU_ERROR("[audio] Apple stream submission failed: {}", SDL_GetError());
+    RecordOutput(stereo.data(), int(sizeof(stereo)), 2);
+    CountFrame(false);
+    return;
+  }
+#endif
+  float* output_frame;
+  {''')
     text = replace_once(text,
         "      std::this_thread::yield();  // no sleep: on Windows it can overshoot by several ms",
         '''#if defined(__APPLE__)
