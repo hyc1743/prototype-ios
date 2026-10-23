@@ -6,8 +6,8 @@ p2_renderer = "native"
 render_target_path_vulkan = "fsi"
 user_language = 1
 
-# Keep enough guest audio ready for CoreAudio callbacks and shader compilation.
-audio_maxqframes = 32
+# Restore the native-dev.3 guest callback queue after the native-dev.4 regression.
+audio_maxqframes = 8
 
 # Native renderer: the values Prototype 2 0.1.0 ships with (same engine).
 p2_native_msaa = false

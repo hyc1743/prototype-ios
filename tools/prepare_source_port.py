@@ -641,23 +641,11 @@ def prepare(args):
                          "    address = uint32_t(fetch.base_address) << 12;")
     after = replace_once(after, "frontbuffer & 0x1FFFFFFF,fetch.base_address<<12,address,width,height,",
                          "frontbuffer & 0x1FFFFFFF,uint32_t(fetch.base_address)<<12,address,width,height,")
-    from apple_renderer import primitive_renderer_source
-    after = primitive_renderer_source(after)
-    shutil.copyfile(ROOT / "ios/source-port/PrototypePrimitiveTessellation.h",
-                    prototype / "src/native/PrototypePrimitiveTessellation.h")
-    tess = prototype / "src/native/native_tessellation.cpp"
-    tess_text = tess.read_text(encoding="utf8")
-    tess_text = replace_once(tess_text, '}  // namespace p2::native::tessellation',
-        'bool CompilePrimitiveShader(bool evaluation, const std::string& source, std::vector<uint32_t>& spirv) {\n'
-        '  return Compile(evaluation ? EShLangTessEvaluation : EShLangTessControl, source, spirv);\n'
-        '}\n\n}  // namespace p2::native::tessellation')
-    tess.write_text(tess_text, encoding="utf8", newline="\n")
-    tess_header = prototype / "src/native/native_tessellation.h"
-    tess_text = tess_header.read_text(encoding="utf8").replace('#include <vector>', '#include <vector>\n#include <string>')
-    tess_text = replace_once(tess_text, '}  // namespace p2::native::tessellation',
-        'bool CompilePrimitiveShader(bool evaluation, const std::string& source, std::vector<uint32_t>& spirv);\n\n'
-        '}  // namespace p2::native::tessellation')
-    tess_header.write_text(tess_text, encoding="utf8", newline="\n")
+    # native-dev.4's tessellation expansion regressed startup on the user's
+    # A19 Pro. Keep the complete native renderer/tessellation sources on the
+    # native-dev.3 path until an Apple runtime test validates a replacement.
+    if hashlib.sha256(after.encode("utf8")).hexdigest() != "51428bf38ec59a4339dae14dff90382db8c7e89e5ab18ac4cb719d294ce8193a":
+        raise ValueError("Recovery renderer differs from the verified native-dev.3 source")
     renderer.write_text(after, encoding="utf8", newline="\n")
     renderer_diff = diffs / "prototype-native-renderer.patch"
     renderer_diff.write_text("".join(difflib.unified_diff(before.splitlines(True), after.splitlines(True),

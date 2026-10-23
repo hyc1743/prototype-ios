@@ -207,7 +207,7 @@ static bool PrepareDocuments(NSURL **documents, NSError **error) {
         NSRegularExpression *audio = [NSRegularExpression regularExpressionWithPattern:
             @"(?m)^[\\t ]*audio_maxqframes[\\t ]*=" options:0 error:NULL];
         if (![audio numberOfMatchesInString:changed options:0 range:NSMakeRange(0, changed.length)])
-            changed = [changed stringByAppendingString:@"\n# iOS audio buffering\naudio_maxqframes = 32\n"];
+            changed = [changed stringByAppendingString:@"\n# iOS audio buffering\naudio_maxqframes = 8\n"];
         if (![changed isEqualToString:text]) {
             NSURL *backup = [root URLByAppendingPathComponent:@"prototype.pre-v2.toml"];
             if (![files fileExistsAtPath:backup.path] && ![files copyItemAtURL:config toURL:backup error:error]) return false;
@@ -216,6 +216,29 @@ static bool PrepareDocuments(NSURL **documents, NSError **error) {
         }
         if (![@"2\n" writeToURL:migration atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
     }
+    // Documents survives an IPA upgrade. Undo dev.4's persisted queue value
+    // even when the earlier language migration marker already exists.
+    NSURL *audioMigration = [root URLByAppendingPathComponent:@".prototype-config-v3"];
+    if (![files fileExistsAtPath:audioMigration.path]) {
+        NSString *text = [NSString stringWithContentsOfURL:config encoding:NSUTF8StringEncoding error:error];
+        if (!text) return false;
+        NSRegularExpression *queue = [NSRegularExpression regularExpressionWithPattern:
+            @"(?m)^([\\t ]*audio_maxqframes[\\t ]*=[\\t ]*)32([\\t ]*(?:#[^\\r\\n]*)?)(\\r?$)" options:0 error:NULL];
+        NSMutableString *changed = [text mutableCopy];
+        NSArray<NSTextCheckingResult *> *matches = [queue matchesInString:text options:0
+            range:NSMakeRange(0, text.length)];
+        for (NSTextCheckingResult *match in matches.reverseObjectEnumerator)
+            [changed replaceCharactersInRange:NSMakeRange(NSMaxRange([match rangeAtIndex:1]), 2)
+                withString:@"8"];
+        if (![changed isEqualToString:text]) {
+            NSURL *backup = [root URLByAppendingPathComponent:@"prototype.pre-v3.toml"];
+            if (![files fileExistsAtPath:backup.path] && ![files copyItemAtURL:config toURL:backup error:error]) return false;
+            if (![changed writeToURL:config atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
+        }
+        if (![@"3\n" writeToURL:audioMigration atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
+    }
+    fprintf(stderr, "[prototype-source] build=%s renderer=native-dev.3 audio=device-default config=%s\n",
+        [[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] UTF8String], config.fileSystemRepresentation);
     NSString *game = [root.path stringByAppendingPathComponent:@"game"];
     NSString *saves = [root.path stringByAppendingPathComponent:@"saves"];
     // PrototypeApp::OnConfigurePaths applies CONFIG_PATH before its existing
@@ -273,9 +296,6 @@ static int SDLCALL PrototypeSDLMain(int argc, char **argv) {
             }
             SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "uikit", SDL_HINT_OVERRIDE);
             SDL_SetHint(SDL_HINT_APP_NAME, "Prototype");
-            // 512 frames at 48 kHz avoids large CoreAudio pulls draining the
-            // guest queue in one callback; SDL still negotiates device format.
-            SDL_SetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, "512");
             // GameController input is merged with touch by the virtual pad.
             // Keep one logical player instead of also opening each pad in SDL.
             SDL_SetHint(SDL_HINT_JOYSTICK_MFI, "0");
