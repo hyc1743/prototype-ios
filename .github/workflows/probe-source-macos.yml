@@ -39,6 +39,8 @@ jobs:
         run: |
           brew install cmake ninja ccache spirv-tools
           python -m pip install -r requirements.txt
+      - name: Check Apple rendering regressions
+        run: python -m unittest discover -s tests -p test_apple_native_fixes.py
       - uses: actions/cache/restore@v4
         with:
           path: |

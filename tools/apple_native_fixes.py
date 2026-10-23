@@ -18,6 +18,20 @@ def alias_pass_source(text):
                         alias + '\n  // Record.\n  if (!BeginPass(targets)) return skip(14);')
 
 
+def capture_pass_source(text):
+    # Readbacks end rendering and invalidate cached bindings. Run them before
+    # BeginPass and DrawCommand construction so both are rebuilt afterwards.
+    start = text.index('  if (water_dump_enabled && setup.active_vs &&',
+                       text.index('  // Record.\n  if (!BeginPass(targets))'))
+    end = text.index('  if (profile_draws && profile_frame) {', start)
+    capture = text[start:end]
+    text = text[:start] + text[end:]
+    capture = capture.replace('TraceSimDraw(d.count)', 'TraceSimDraw(draw_count)')
+    capture = capture.replace('WaterSequenceDump(d.count)', 'WaterSequenceDump(draw_count)')
+    return replace_once(text, '  // Record.\n  if (!BeginPass(targets))',
+                        capture + '\n  // Record.\n  if (!BeginPass(targets))')
+
+
 def exception_source(text):
     text = replace_once(text, '#include <signal.h>', '#include <signal.h>\n#include <unistd.h>')
     return replace_once(text, '''  }
@@ -218,7 +232,7 @@ namespace shaders {''')
           translation->Dump(dump, "spirv");
         translation->GetOrCreateShaderModule();
       }''')
-    return alias_pass_source(text)
+    return capture_pass_source(alias_pass_source(text))
 
 
 def audio_source(text):

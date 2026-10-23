@@ -7,10 +7,64 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from apple_native_fixes import audio_source, renderer_source, translator_source, alias_pass_source
+from apple_native_fixes import (audio_source, renderer_source, translator_source,
+                                alias_pass_source, capture_pass_source)
 
 
 class AppleNativeFixTests(unittest.TestCase):
+    def test_capture_readbacks_preserve_render_pass_and_bound_state(self):
+        compiler = shutil.which('g++') or shutil.which('clang++')
+        if not compiler:
+            self.skipTest('C++ compiler unavailable')
+        fixture = r'''
+#include <iostream>
+struct Shader {unsigned ucode_data_hash() {return 0;}};
+struct Setup {Shader* active_vs=nullptr;Shader* active_ps=nullptr;} setup;
+bool in_pass=false,bound=false,water_dump_enabled=false;
+bool capture_all=true,post_trace_seconds=false,water_seq_frame=false;
+bool water_raw_pending=false,profile_draws=false,profile_frame=false;
+int post_trace_count=0,frame=1,water_seq_count=0,targets=0;
+void RequestWaterDump() {}
+bool WaterSimTracing() {return true;}
+void PostDump(unsigned) {in_pass=false;bound=false;}
+void TraceSimDraw(unsigned) {PostDump(0);}
+void WaterSequenceDump(unsigned) {PostDump(0);}
+void DumpWaterSimInputs() {PostDump(0);}
+void skip(int) {}
+bool BeginPass(int) {in_pass=true;return true;}
+void Draw() {
+  unsigned draw_count=6;
+  // Record.
+  if (!BeginPass(targets)) return skip(14);
+  struct {unsigned count;} d{draw_count};
+  bound=true;
+  if (water_dump_enabled && setup.active_vs &&
+      setup.active_vs->ucode_data_hash() == 0) RequestWaterDump();
+  if (WaterSimTracing()) {
+    if (((post_trace_seconds && post_trace_count == 2) || capture_all) && setup.active_ps)
+      PostDump(setup.active_ps->ucode_data_hash());
+    TraceSimDraw(d.count);
+  }
+  if (water_seq_frame && frame == water_seq_frame && water_seq_count < 24)
+    WaterSequenceDump(d.count);
+  if (water_raw_pending) DumpWaterSimInputs();
+  if (profile_draws && profile_frame) {}
+  std::cout<<in_pass<<bound;
+}
+int main() {Draw();}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            for label, source, expected in [('before', fixture, '00'),
+                                             ('after', capture_pass_source(fixture), '11')]:
+                cpp = directory / (label + '.cpp')
+                cpp.write_text(source)
+                executable = directory / (label + ('.exe' if sys.platform == 'win32' else ''))
+                subprocess.run([compiler, '-std=c++17', str(cpp), '-o', str(executable)],
+                               check=True, capture_output=True)
+                result = subprocess.run([str(executable)], check=True, capture_output=True, text=True)
+                self.assertEqual(result.stdout, expected)
+
     def test_alias_clear_cannot_leave_the_draw_outside_a_render_pass(self):
         compiler = shutil.which('g++') or shutil.which('clang++')
         if not compiler:
