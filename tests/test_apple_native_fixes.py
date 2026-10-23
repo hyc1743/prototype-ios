@@ -7,10 +7,113 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from apple_native_fixes import audio_source, renderer_source
+from apple_native_fixes import audio_source, renderer_source, translator_source, alias_pass_source
 
 
 class AppleNativeFixTests(unittest.TestCase):
+    def test_alias_clear_cannot_leave_the_draw_outside_a_render_pass(self):
+        compiler = shutil.which('g++') or shutil.which('clang++')
+        if not compiler:
+            self.skipTest('C++ compiler unavailable')
+        fixture = r'''
+#include <iostream>
+namespace xenos { enum class PrimitiveType {kRectangleList}; }
+namespace reg {
+struct VGT_DRAW_INITIATOR {xenos::PrimitiveType prim_type=xenos::PrimitiveType::kRectangleList;};
+struct RB_SURFACE_INFO {int msaa_samples=0;};
+}
+struct Registers {template<class T> T Get() {return {};}};
+struct Setup {struct {int* depth;int* color[2];} targets;};
+struct Renderer {
+  bool in_pass=false,edram_depth_alias_clear=true;
+  int target=1,targets=1;
+  Registers r;
+  Setup setup{{&target,{nullptr,nullptr}}};
+  void AliasDepthClearToColor(int) {in_pass=false;}
+  bool BeginPass(int) {in_pass=true;return true;}
+  void skip(int) {}
+  void Draw() {
+  // Record.
+  if (!BeginPass(targets)) return skip(14);
+  if (edram_depth_alias_clear && setup.targets.depth && !setup.targets.color[0] &&
+      setup.targets.color[1] == nullptr) {
+    auto draw_initiator = r.Get<reg::VGT_DRAW_INITIATOR>();
+    if (draw_initiator.prim_type == xenos::PrimitiveType::kRectangleList) {
+      AliasDepthClearToColor(r.Get<reg::RB_SURFACE_INFO>().msaa_samples);
+    }
+  }
+    std::cout<<in_pass;
+  }
+};
+int main(){Renderer renderer;renderer.Draw();}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            for label, source, expected in [('before', fixture, '0'),
+                                             ('after', alias_pass_source(fixture), '1')]:
+                cpp = directory / (label + '.cpp')
+                cpp.write_text(source)
+                executable = directory / (label + ('.exe' if sys.platform == 'win32' else ''))
+                subprocess.run([compiler, '-std=c++17', str(cpp), '-o', str(executable)],
+                               check=True, capture_output=True)
+                output = subprocess.run([str(executable)], check=True, capture_output=True, text=True).stdout
+                self.assertEqual(output, expected)
+
+    def test_rectangle_pc_phi_includes_the_late_added_predecessor(self):
+        compiler = shutil.which('g++') or shutil.which('clang++')
+        if not compiler:
+            self.skipTest('C++ compiler unavailable')
+        fixture = r'''
+#include <vector>
+#include <iostream>
+namespace spv { struct Block {}; }
+struct Builder {
+  spv::Block* point=nullptr;
+  void setBuildPoint(spv::Block* block) { point=block; }
+  spv::Block* getBuildPoint() { return point; }
+  void createBranch(spv::Block*) {}
+};
+struct Function { void addBlock(spv::Block*) {} };
+int main() {
+  Builder storage; Builder* builder_=&storage;
+  Function function; Function* function_main_=&function;
+  spv::Block header,continuation,merge,exit;
+  auto* main_loop_header_=&header;
+  auto* main_loop_continue_=&continuation;
+  auto* main_loop_merge_=&merge;
+  auto* main_loop_exit_=&exit;
+  bool has_main_switch=true;
+  std::vector<unsigned> incoming_pc{7,100}, phi;
+  {
+    builder_->setBuildPoint(main_loop_continue_);
+    if (has_main_switch) {
+      phi=incoming_pc;
+    }
+    builder_->createBranch(main_loop_header_);
+    // Rectangle iteration adds the program counter 0 and its predecessor.
+    incoming_pc.push_back(0); incoming_pc.push_back(200);
+    if (main_loop_exit_ != main_loop_merge_) {
+      function_main_->addBlock(main_loop_exit_);
+      builder_->setBuildPoint(main_loop_exit_);
+    }
+  }
+
+  // Write data for the last memexport.
+  std::cout<<phi.size();
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            for label, source, expected in [('before', fixture, '2'),
+                                             ('after', translator_source(fixture), '4')]:
+                cpp = directory / (label + '.cpp')
+                cpp.write_text(source)
+                executable = directory / (label + ('.exe' if sys.platform == 'win32' else ''))
+                subprocess.run([compiler, '-std=c++17', str(cpp), '-o', str(executable)],
+                               check=True, capture_output=True)
+                output = subprocess.run([str(executable)], check=True, capture_output=True, text=True).stdout
+                self.assertEqual(output, expected)
+
     def test_index_expansion_keeps_winding_primitive_boundaries_and_large_indices(self):
         compiler = shutil.which('g++') or shutil.which('clang++')
         if not compiler:

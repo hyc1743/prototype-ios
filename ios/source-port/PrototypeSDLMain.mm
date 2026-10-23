@@ -249,6 +249,18 @@ static bool PrepareDocuments(NSURL **documents, NSError **error) {
         }
         if (![@"4\n" writeToURL:pumpMigration atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
     }
+    NSURL *queryMigration = [root URLByAppendingPathComponent:@".prototype-config-v5"];
+    if (![files fileExistsAtPath:queryMigration.path]) {
+        NSString *text = [NSString stringWithContentsOfURL:config encoding:NSUTF8StringEncoding error:error];
+        if (!text) return false;
+        NSRegularExpression *query = [NSRegularExpression regularExpressionWithPattern:
+            @"(?m)^[\\t ]*p2_native_occlusion_queries[\\t ]*=" options:0 error:NULL];
+        if (![query numberOfMatchesInString:text options:0 range:NSMakeRange(0, text.length)]) {
+            NSString *changed = [text stringByAppendingString:@"\n# Apple guest query compatibility\np2_native_occlusion_queries = false\n"];
+            if (![changed writeToURL:config atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
+        }
+        if (![@"5\n" writeToURL:queryMigration atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
+    }
     fprintf(stderr, "[prototype-source] build=%s renderer=sdk-vertex-expansion audio=stereo-paced config=%s\n",
         [[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] UTF8String], config.fileSystemRepresentation);
     NSString *game = [root.path stringByAppendingPathComponent:@"game"];
