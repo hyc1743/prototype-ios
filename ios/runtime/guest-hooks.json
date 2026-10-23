@@ -1,0 +1,321 @@
+{
+  "schema": 1,
+  "source_nro_sha256": "16165370c4484394c81a775f48b1b2b47c833cc2bd412727935cb0fb17401330",
+  "hooks": [
+    {
+      "offset": 43096888,
+      "slot": 0,
+      "symbol": "vkGetInstanceProcAddr",
+      "expected_original": "fd7bbda9fd030091f35301a9f51300f9",
+      "evidence": "SDK loader call at 0x1677f8 and resolver strcmp/return table, GOT 0x3ca4698=0x2919b38; FDE verified"
+    },
+    {
+      "offset": 43096740,
+      "slot": 1,
+      "symbol": "vkGetDeviceProcAddr",
+      "expected_original": "fd7bbda9fd030091f35301a9210300b4",
+      "evidence": "SDK loader call at 0x1677f8 and resolver strcmp/return table, GOT 0x3ca4698=0x2919b38; FDE verified"
+    },
+    {
+      "offset": 47218288,
+      "slot": 1024,
+      "symbol": "prototype_libnx_app_init",
+      "expected_original": "fd7bafa9fd030091faefff97c0050035",
+      "evidence": "tools/analyze_platform.py"
+    },
+    {
+      "offset": 47953632,
+      "slot": 1025,
+      "symbol": "prototype_find_device",
+      "expected_original": "fd7bbca941078052fd030091f76303a9",
+      "evidence": "tools/analyze_platform.py"
+    },
+    {
+      "offset": 47170192,
+      "slot": 1026,
+      "symbol": "appletGetAppletType",
+      "expected_original": "407d00b000fc43f9000040b9c0035fd6",
+      "evidence": "tools/analyze_services.py: SDK context Initialize tests the result before setting focus handling"
+    },
+    {
+      "offset": 47170208,
+      "slot": 1027,
+      "symbol": "appletHook",
+      "expected_original": "210100b4039900f063c00591661c40a9",
+      "evidence": "tools/analyze_services.py: SDK context Initialize passes cookie, callback and context"
+    },
+    {
+      "offset": 47170320,
+      "slot": 1028,
+      "symbol": "appletSetFocusHandlingMode",
+      "expected_original": "417d00b021fc43f9210040b981090035",
+      "evidence": "tools/analyze_services.py: SDK Initialize passes enum value 2 before installing hook"
+    },
+    {
+      "offset": 47170768,
+      "slot": 1029,
+      "symbol": "appletGetDefaultDisplayResolution",
+      "expected_original": "059900f0a20042b942030034a6000891",
+      "evidence": "tools/analyze_services.py: WindowSwitch::QueryDisplayResolution passes two s32 outputs"
+    },
+    {
+      "offset": 47170896,
+      "slot": 1030,
+      "symbol": "appletGetDefaultDisplayResolutionChangeEvent",
+      "expected_original": "029900f0410042b9c102003444000891",
+      "evidence": "tools/analyze_services.py: SDK Initialize passes impl display-resolution Event output"
+    },
+    {
+      "offset": 47178064,
+      "slot": 1031,
+      "symbol": "appletGetOperationMode",
+      "expected_original": "009900b000404639c0035fd600000000",
+      "evidence": "tools/analyze_services.py: SDK QueryDisplayResolution compares result to docked enum 1"
+    },
+    {
+      "offset": 47178080,
+      "slot": 1032,
+      "symbol": "appletGetFocusState",
+      "expected_original": "009900b000244639c0035fd600000000",
+      "evidence": "tools/analyze_services.py: SDK OpenImpl compares result to InFocus enum 1"
+    },
+    {
+      "offset": 47178096,
+      "slot": 1033,
+      "symbol": "appletGetMessageEvent",
+      "expected_original": "009900b000800691c0035fd600000000",
+      "evidence": "tools/analyze_services.py: SDK UI loop loads handle at result+0 and autoclear at result+8"
+    },
+    {
+      "offset": 47178864,
+      "slot": 1034,
+      "symbol": "appletMainLoop",
+      "expected_original": "fd7bbea9fd030091e0730091ff1f00b9",
+      "evidence": "tools/analyze_services.py: UI loop exits when result bit 0 is clear; normalized full body matches Biko3 libnx appletMainLoop"
+    },
+    {
+      "offset": 47179392,
+      "slot": 1035,
+      "symbol": "prototype_audio_exit",
+      "expected_original": "fd7bbda9fd030091f30b00f9139900b0",
+      "evidence": "tools/analyze_services.py: SDK StartOutput error/StopOutput cleanup and Biko3 libnx audio-exit body"
+    },
+    {
+      "offset": 47179472,
+      "slot": 1036,
+      "symbol": "prototype_audio_rate",
+      "expected_original": "009900b0004843b9c0035fd600000000",
+      "evidence": "tools/analyze_services.py: SDK StartOutput compares to 48000"
+    },
+    {
+      "offset": 47179488,
+      "slot": 1037,
+      "symbol": "prototype_audio_channels",
+      "expected_original": "009900b0004443b9c0035fd600000000",
+      "evidence": "tools/analyze_services.py: SDK StartOutput compares to 2 channels"
+    },
+    {
+      "offset": 47179504,
+      "slot": 1038,
+      "symbol": "prototype_audio_format",
+      "expected_original": "009900b0004043b9c0035fd600000000",
+      "evidence": "tools/analyze_services.py: SDK StartOutput compares to PCM Int16 enum 2"
+    },
+    {
+      "offset": 47180224,
+      "slot": 1039,
+      "symbol": "prototype_audio_initialize",
+      "expected_original": "ffc308d1fd7b00a9fd030091f35301a9",
+      "evidence": "tools/analyze_services.py: SDK StartOutput call and encoded SM service audout:u"
+    },
+    {
+      "offset": 47180704,
+      "slot": 1040,
+      "symbol": "prototype_audio_start",
+      "expected_original": "2000805287feff170000000000000000",
+      "evidence": "tools/analyze_services.py: SDK StartOutput call; sets IPC command 1; byte-identical Biko3 body"
+    },
+    {
+      "offset": 47180720,
+      "slot": 1041,
+      "symbol": "prototype_audio_stop",
+      "expected_original": "4000805283feff170000000000000000",
+      "evidence": "tools/analyze_services.py: SDK StopOutput call; sets IPC command 2; byte-identical Biko3 body"
+    },
+    {
+      "offset": 47180736,
+      "slot": 1042,
+      "symbol": "prototype_audio_append",
+      "expected_original": "fd7bbea9fd030091f30b00f9f30300aa",
+      "evidence": "tools/analyze_services.py: SDK FillAndAppend passes AudioOutBuffer pointer"
+    },
+    {
+      "offset": 47181200,
+      "slot": 1043,
+      "symbol": "prototype_audio_released",
+      "expected_original": "fd7bbea9fd030091f35301a9f40301aa",
+      "evidence": "tools/analyze_services.py: SDK OutputThreadMain drains released buffer and count"
+    },
+    {
+      "offset": 47181600,
+      "slot": 1044,
+      "symbol": "prototype_audio_wait",
+      "expected_original": "fd7bbda9fd030091f35301a9f40301aa",
+      "evidence": "tools/analyze_services.py: SDK OutputThreadMain passes buffer**, count*, timeout; body clears event, gets released, then waits if empty"
+    },
+    {
+      "offset": 47192848,
+      "slot": 1045,
+      "symbol": "hidInitialize",
+      "expected_original": "fd7bbca9fd030091f35301a9f49800d0",
+      "evidence": "tools/analyze_services.py: SwitchInputDriver::Setup call and SM service encoded as hid"
+    },
+    {
+      "offset": 47193568,
+      "slot": 1046,
+      "symbol": "hidGetNpadStyleSet",
+      "expected_original": "fd7bbea9fd030091f30b00f9f303002a",
+      "evidence": "tools/analyze_services.py: padUpdate reads style before style-specific state; dereferences HID shared memory"
+    },
+    {
+      "offset": 47193712,
+      "slot": 1047,
+      "symbol": "hidInitializeTouchScreen",
+      "expected_original": "fd7bbfa960018052fd0300914dfeff97",
+      "evidence": "tools/analyze_services.py: Adjacent wrapper passes HID device id 11 before abort-on-error path"
+    },
+    {
+      "offset": 47193744,
+      "slot": 1048,
+      "symbol": "hidGetTouchScreenStates",
+      "expected_original": "fd7bbea9fd030091f35301a9f30300aa",
+      "evidence": "tools/analyze_services.py: Unique normalized full-body match to Biko3 touch query"
+    },
+    {
+      "offset": 47194032,
+      "slot": 1049,
+      "symbol": "hidGetNpadStatesFullKey",
+      "expected_original": "fd7bbda9fd030091f35301a9f303002a",
+      "evidence": "tools/analyze_services.py: padUpdate branch when style bit 0 set"
+    },
+    {
+      "offset": 47194208,
+      "slot": 1050,
+      "symbol": "hidGetNpadStatesHandheld",
+      "expected_original": "fd7bbda9fd030091f35301a9f303002a",
+      "evidence": "tools/analyze_services.py: padUpdate handheld branch passes id 0x20"
+    },
+    {
+      "offset": 47194384,
+      "slot": 1051,
+      "symbol": "hidGetNpadStatesJoyDual",
+      "expected_original": "fd7bbda9fd030091f35301a9f303002a",
+      "evidence": "tools/analyze_services.py: padUpdate branch when style bit 2 set"
+    },
+    {
+      "offset": 47194560,
+      "slot": 1052,
+      "symbol": "hidGetNpadStatesJoyLeft",
+      "expected_original": "fd7bbda9fd030091f35301a9f303002a",
+      "evidence": "tools/analyze_services.py: padUpdate branch when style bit 3 set"
+    },
+    {
+      "offset": 47194736,
+      "slot": 1053,
+      "symbol": "hidGetNpadStatesJoyRight",
+      "expected_original": "fd7bbda9fd030091f35301a9f303002a",
+      "evidence": "tools/analyze_services.py: padUpdate branch when style bit 4 set"
+    },
+    {
+      "offset": 47194912,
+      "slot": 1054,
+      "symbol": "hidGetNpadStatesGc",
+      "expected_original": "ffc30fd1fd7b00a9fd030091f35301a9",
+      "evidence": "tools/analyze_services.py: padUpdate branch when style bit 5 set; analog triggers copied"
+    },
+    {
+      "offset": 47195248,
+      "slot": 1055,
+      "symbol": "hidGetNpadStatesSystemExt",
+      "expected_original": "fd7bbda9fd030091f35301a9f303002a",
+      "evidence": "tools/analyze_services.py: padUpdate branch when style bit 29 set"
+    },
+    {
+      "offset": 47196736,
+      "slot": 1056,
+      "symbol": "hidPermitVibration",
+      "expected_original": "81198052dffaff170000000000000000",
+      "evidence": "tools/analyze_services.py: SDK Setup passes true after pad initialization"
+    },
+    {
+      "offset": 47210992,
+      "slot": 1057,
+      "symbol": "nwindowGetDefault",
+      "expected_original": "c09800b000602991c0035fd600000000",
+      "evidence": "tools/analyze_services.py: WindowSwitch::OpenImpl first call; returns static image address 0x401fa58"
+    },
+    {
+      "offset": 47212736,
+      "slot": 1058,
+      "symbol": "nwindowIsValid",
+      "expected_original": "e00000b4010040b9c0e98a5220cdad72",
+      "evidence": "tools/analyze_services.py: OpenImpl checks default window; compares first u32 with 0x6e69574e"
+    },
+    {
+      "offset": 47213232,
+      "slot": 1059,
+      "symbol": "nwindowGetDimensions",
+      "expected_original": "fd7bbda9fd030091f35301a9f40301aa",
+      "evidence": "tools/analyze_services.py: Matches libnx validation and current/default dimension output selection"
+    },
+    {
+      "offset": 47213376,
+      "slot": 1060,
+      "symbol": "nwindowSetDimensions",
+      "expected_original": "fd7bbda9fd030091f35301a9f30300aa",
+      "evidence": "tools/analyze_services.py: Matches libnx validity, slots-configured guard, width/height stores and crop clear"
+    },
+    {
+      "offset": 47221408,
+      "slot": 1061,
+      "symbol": "padConfigureInput",
+      "expected_original": "fd7bbaa9fd030091f35301a9f51300f9",
+      "evidence": "tools/analyze_services.py: SDK Setup passes 4 players and style mask 0x1f; normalized unique Biko3 match"
+    },
+    {
+      "offset": 47221568,
+      "slot": 1062,
+      "symbol": "padInitializeWithMask",
+      "expected_original": "1f04004f020400911f10803c5ffc00ad",
+      "evidence": "tools/analyze_services.py: SDK padInitialize inline wrapper passes 64-bit mask incl handheld bit32"
+    },
+    {
+      "offset": 47221616,
+      "slot": 1063,
+      "symbol": "padUpdate",
+      "expected_original": "fd7bb8a9fd030091f35301a9f55b02a9",
+      "evidence": "tools/analyze_services.py: SDK Poll calls it; preserves prior held at+24, zeros new held+16/sticks+32 and dispatches HID styles"
+    },
+    {
+      "offset": 47170256,
+      "slot": 1064,
+      "symbol": "appletUnhook",
+      "expected_original": "019900f021c00591e20301aa210040f9",
+      "evidence": "tools/analyze_services.py and SDK source call correlation"
+    },
+    {
+      "offset": 47195696,
+      "slot": 1065,
+      "symbol": "hidInitializeVibrationDevices",
+      "expected_original": "fd7bbaa9fd030091f96b04a9fa0300aa",
+      "evidence": "tools/analyze_services.py and SDK source call correlation"
+    },
+    {
+      "offset": 47196752,
+      "slot": 1066,
+      "symbol": "hidSendVibrationValues",
+      "expected_original": "fd7bbda9fd030091f35301a9f403022a",
+      "evidence": "tools/analyze_services.py and SDK source call correlation"
+    }
+  ]
+}

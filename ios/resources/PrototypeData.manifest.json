@@ -1,0 +1,640 @@
+{
+  "schema": 1,
+  "format": "prototype-resource-parts-v1",
+  "game": "prototype",
+  "total_bytes": 7211147379,
+  "file_count": 41,
+  "part_bytes": 536870912,
+  "parts": [
+    {
+      "name": "PrototypeData.part001.ptdata",
+      "size": 536870912,
+      "sha256": "3aafb1f0da5d4ce26951cc102cd6193440fcecfd46446f28bded2ac4ccac17dc"
+    },
+    {
+      "name": "PrototypeData.part002.ptdata",
+      "size": 536870912,
+      "sha256": "42d6bea0734695c5c28f5a3d4707bdac256d2b2013d267fe5ea10379cb085208"
+    },
+    {
+      "name": "PrototypeData.part003.ptdata",
+      "size": 536870912,
+      "sha256": "9af1045fa9d31b573f800a1b24de0cc5a24445ae94690d557a5a6a09dc3c1650"
+    },
+    {
+      "name": "PrototypeData.part004.ptdata",
+      "size": 536870912,
+      "sha256": "39f8a5d5a7047d5de08a286d45019c95fd944ebae7da3522cf947e1ad941acdd"
+    },
+    {
+      "name": "PrototypeData.part005.ptdata",
+      "size": 536870912,
+      "sha256": "e55e3272c259a294bfabc9b23a37ee06b6e87fb8281e2ee17638df86348f72b0"
+    },
+    {
+      "name": "PrototypeData.part006.ptdata",
+      "size": 536870912,
+      "sha256": "83231fe40d2a232c1d2ba2de049bca17df151bdca99098342811475c97a40300"
+    },
+    {
+      "name": "PrototypeData.part007.ptdata",
+      "size": 536870912,
+      "sha256": "b5a9898ceef65d9f8b4b45f51f91b33b72b99b604d49ee59017625195c785348"
+    },
+    {
+      "name": "PrototypeData.part008.ptdata",
+      "size": 536870912,
+      "sha256": "3f92ccaa083bb49a7c4b237143d1c90c2f6a4a8dd79e25d29166fa9804117b3c"
+    },
+    {
+      "name": "PrototypeData.part009.ptdata",
+      "size": 536870912,
+      "sha256": "5c1376396a1e36b567b0de843d6801759c4e932572b94ecba9e34de71b15e199"
+    },
+    {
+      "name": "PrototypeData.part010.ptdata",
+      "size": 536870912,
+      "sha256": "949f5a665c14833882f73190eba048acbf8ebacfcf37d901a54d79143e5341f8"
+    },
+    {
+      "name": "PrototypeData.part011.ptdata",
+      "size": 536870912,
+      "sha256": "50ea593767840ec7ee94535d6577618aaf52cc535b08c9af8b28f2b60bc97a95"
+    },
+    {
+      "name": "PrototypeData.part012.ptdata",
+      "size": 536870912,
+      "sha256": "579e7027e819de147d4e8c394ae62efa1eb44440a6a558c5d3de1cfbf1abf816"
+    },
+    {
+      "name": "PrototypeData.part013.ptdata",
+      "size": 536870912,
+      "sha256": "67c52255c43fc696ae8363ce62ded1b4e45139d060096b30fdce7af65543e0e3"
+    },
+    {
+      "name": "PrototypeData.part014.ptdata",
+      "size": 231825523,
+      "sha256": "b32f1ec895d48cf764e27ded31880db8df884f70b95278a8ec52639aff9b0403"
+    }
+  ],
+  "files": [
+    {
+      "path": "game/00art.rcf",
+      "size": 161851392,
+      "sha256": "127043a682bd2d417a686e5ef79923388db6bb97aeed24c6f3c3fd52d51e7734",
+      "segments": [
+        {
+          "part": 0,
+          "offset": 0,
+          "length": 161851392
+        }
+      ]
+    },
+    {
+      "path": "game/00audio.rcf",
+      "size": 251172864,
+      "sha256": "678d8575cbae5b49e14c4fd9cfec96bc60cf0e58668ec0f01eed1ae4fd4231b6",
+      "segments": [
+        {
+          "part": 0,
+          "offset": 161851392,
+          "length": 251172864
+        }
+      ]
+    },
+    {
+      "path": "game/00cells.rcf",
+      "size": 303840208,
+      "sha256": "23f22183f20c8c9faa4d109e88a72c21bffc8451dfc811a03919fa783ead8b61",
+      "segments": [
+        {
+          "part": 0,
+          "offset": 413024256,
+          "length": 123846656
+        },
+        {
+          "part": 1,
+          "offset": 0,
+          "length": 179993552
+        }
+      ]
+    },
+    {
+      "path": "game/00movies.rcf",
+      "size": 311662304,
+      "sha256": "ce7fcead308cb1cea245e09344b28c8f7d317a20d6d57b54ba8eb9b35c4d5ec9",
+      "segments": [
+        {
+          "part": 1,
+          "offset": 179993552,
+          "length": 311662304
+        }
+      ]
+    },
+    {
+      "path": "game/00woi.rcf",
+      "size": 178846556,
+      "sha256": "e769c681c1227f6b790a1fb46ee69ed097175bb442164795337906a382fb579a",
+      "segments": [
+        {
+          "part": 1,
+          "offset": 491655856,
+          "length": 45215056
+        },
+        {
+          "part": 2,
+          "offset": 0,
+          "length": 133631500
+        }
+      ]
+    },
+    {
+      "path": "game/01art.rcf",
+      "size": 166432768,
+      "sha256": "3d442e970856b469450f9a90d018e6c28e6a3c5ba0c7d16b20524bef2c1f78ce",
+      "segments": [
+        {
+          "part": 2,
+          "offset": 133631500,
+          "length": 166432768
+        }
+      ]
+    },
+    {
+      "path": "game/01audio.rcf",
+      "size": 249524224,
+      "sha256": "5c5d90867ecf7fc9bff3dac80a9872c7eb03f68ee728f71f6fb376c99c26762f",
+      "segments": [
+        {
+          "part": 2,
+          "offset": 300064268,
+          "length": 236806644
+        },
+        {
+          "part": 3,
+          "offset": 0,
+          "length": 12717580
+        }
+      ]
+    },
+    {
+      "path": "game/01cells.rcf",
+      "size": 312507048,
+      "sha256": "0fc6c56e717978da8951b6d6e8169a9c15223c8cd78e39fa23b6f2e0a13a9172",
+      "segments": [
+        {
+          "part": 3,
+          "offset": 12717580,
+          "length": 312507048
+        }
+      ]
+    },
+    {
+      "path": "game/01movies.rcf",
+      "size": 319723216,
+      "sha256": "42c69624b0bcc78d9199dc2426b5f7c4db1c5aa90b32fffe1eb7be76274a3ac7",
+      "segments": [
+        {
+          "part": 3,
+          "offset": 325224628,
+          "length": 211646284
+        },
+        {
+          "part": 4,
+          "offset": 0,
+          "length": 108076932
+        }
+      ]
+    },
+    {
+      "path": "game/01woi.rcf",
+      "size": 272670012,
+      "sha256": "59e3f323b6d9837663595af274c780f7fb3235f7f053472171a670a6cae9ab7c",
+      "segments": [
+        {
+          "part": 4,
+          "offset": 108076932,
+          "length": 272670012
+        }
+      ]
+    },
+    {
+      "path": "game/02art.rcf",
+      "size": 166197248,
+      "sha256": "c7981fdaa5c977c47c48f6863253b17b614fe251ae4629ef95b478faf9e80cc5",
+      "segments": [
+        {
+          "part": 4,
+          "offset": 380746944,
+          "length": 156123968
+        },
+        {
+          "part": 5,
+          "offset": 0,
+          "length": 10073280
+        }
+      ]
+    },
+    {
+      "path": "game/02audio.rcf",
+      "size": 240033692,
+      "sha256": "c464d53864e114a236631c9483e0402c5eed990db1577daf6bda596accc6144d",
+      "segments": [
+        {
+          "part": 5,
+          "offset": 10073280,
+          "length": 240033692
+        }
+      ]
+    },
+    {
+      "path": "game/02movies.rcf",
+      "size": 326841576,
+      "sha256": "c17d3ed3bf6218b39ff92a921a1c9b60c2f963aba83146ff5c22b2ccbb66270d",
+      "segments": [
+        {
+          "part": 5,
+          "offset": 250106972,
+          "length": 286763940
+        },
+        {
+          "part": 6,
+          "offset": 0,
+          "length": 40077636
+        }
+      ]
+    },
+    {
+      "path": "game/02woi.rcf",
+      "size": 293500652,
+      "sha256": "be074534a3271a909765e09351b0ea85c3cef648d939057774151f954c96ca31",
+      "segments": [
+        {
+          "part": 6,
+          "offset": 40077636,
+          "length": 293500652
+        }
+      ]
+    },
+    {
+      "path": "game/03audio.rcf",
+      "size": 242397184,
+      "sha256": "c223ede20e8d0a2e071375251d5dc0ad4a1baa61af1566047637d49b1c6f13f2",
+      "segments": [
+        {
+          "part": 6,
+          "offset": 333578288,
+          "length": 203292624
+        },
+        {
+          "part": 7,
+          "offset": 0,
+          "length": 39104560
+        }
+      ]
+    },
+    {
+      "path": "game/03movies.rcf",
+      "size": 195919388,
+      "sha256": "f12d07f13b66ae1b97668b9e61c2dd5eea3ac3a476509d3c81b2b4e84a1f72a7",
+      "segments": [
+        {
+          "part": 7,
+          "offset": 39104560,
+          "length": 195919388
+        }
+      ]
+    },
+    {
+      "path": "game/03woi.rcf",
+      "size": 262506456,
+      "sha256": "f8fa8b1398190064adfa0be2bf71ab0f13f02bed3364627e280903726759e1ae",
+      "segments": [
+        {
+          "part": 7,
+          "offset": 235023948,
+          "length": 262506456
+        }
+      ]
+    },
+    {
+      "path": "game/04woi.rcf",
+      "size": 253282852,
+      "sha256": "862ed54b664aab6cfa31491cd082a4d48ecd82a7bdd833cb4e4e6b3a1ae95b4a",
+      "segments": [
+        {
+          "part": 7,
+          "offset": 497530404,
+          "length": 39340508
+        },
+        {
+          "part": 8,
+          "offset": 0,
+          "length": 213942344
+        }
+      ]
+    },
+    {
+      "path": "game/05woi.rcf",
+      "size": 265046668,
+      "sha256": "3c704239352012a6a3726c312a95d404718daa252d07f52b87aaaae19809a855",
+      "segments": [
+        {
+          "part": 8,
+          "offset": 213942344,
+          "length": 265046668
+        }
+      ]
+    },
+    {
+      "path": "game/06woi.rcf",
+      "size": 254348632,
+      "sha256": "3e367bbc36ae5f20ce57aac6130d969a7e6d86cc216a5e6c949ffb12b9e526c6",
+      "segments": [
+        {
+          "part": 8,
+          "offset": 478989012,
+          "length": 57881900
+        },
+        {
+          "part": 9,
+          "offset": 0,
+          "length": 196466732
+        }
+      ]
+    },
+    {
+      "path": "game/07woi.rcf",
+      "size": 251627148,
+      "sha256": "ec87cbe8fb95b525995160b3a116fb1f58312ca48cb3bb4b9f89ef4d7895815a",
+      "segments": [
+        {
+          "part": 9,
+          "offset": 196466732,
+          "length": 251627148
+        }
+      ]
+    },
+    {
+      "path": "game/08woi.rcf",
+      "size": 259187752,
+      "sha256": "c3e47a0945aa79abb864ca1bb7b8adc9d0025436703a962d845ea40387e3fbd4",
+      "segments": [
+        {
+          "part": 9,
+          "offset": 448093880,
+          "length": 88777032
+        },
+        {
+          "part": 10,
+          "offset": 0,
+          "length": 170410720
+        }
+      ]
+    },
+    {
+      "path": "game/09woi.rcf",
+      "size": 272894952,
+      "sha256": "b6edd459088aefa51de92d18b5e143249f44a01a10d9de165981600f359707e3",
+      "segments": [
+        {
+          "part": 10,
+          "offset": 170410720,
+          "length": 272894952
+        }
+      ]
+    },
+    {
+      "path": "game/10woi.rcf",
+      "size": 254531924,
+      "sha256": "15383b83576e410dfad3c342f4285ae475b28ce635bd5b53d4bb80c145713085",
+      "segments": [
+        {
+          "part": 10,
+          "offset": 443305672,
+          "length": 93565240
+        },
+        {
+          "part": 11,
+          "offset": 0,
+          "length": 160966684
+        }
+      ]
+    },
+    {
+      "path": "game/11woi.rcf",
+      "size": 261498064,
+      "sha256": "3d487d40e86d71ed6d7c8fc77615d1c6cef78ac4393023c3f9bcb60ed71cfdfe",
+      "segments": [
+        {
+          "part": 11,
+          "offset": 160966684,
+          "length": 261498064
+        }
+      ]
+    },
+    {
+      "path": "game/12woi.rcf",
+      "size": 268726968,
+      "sha256": "d94060a345dd82440803b0e54ffb584a0fdc8a25b3747c3fde995be7ae3e7774",
+      "segments": [
+        {
+          "part": 11,
+          "offset": 422464748,
+          "length": 114406164
+        },
+        {
+          "part": 12,
+          "offset": 0,
+          "length": 154320804
+        }
+      ]
+    },
+    {
+      "path": "game/13woi.rcf",
+      "size": 274223036,
+      "sha256": "31667850b5b2b68c897afc6c1df432712e3b663138e8b847ea8b5a5b6bbe177b",
+      "segments": [
+        {
+          "part": 12,
+          "offset": 154320804,
+          "length": 274223036
+        }
+      ]
+    },
+    {
+      "path": "game/14woi.rcf",
+      "size": 248496484,
+      "sha256": "4d9896bb8669585e93e1033cfc910a63242ec401a4aa3b6297c0ece52c69255d",
+      "segments": [
+        {
+          "part": 12,
+          "offset": 428543840,
+          "length": 108327072
+        },
+        {
+          "part": 13,
+          "offset": 0,
+          "length": 140169412
+        }
+      ]
+    },
+    {
+      "path": "game/15woi.rcf",
+      "size": 74376504,
+      "sha256": "21424e3489fc88ace0a276e8a6a38f12e53ff86df523a11b39e5c2825815e27a",
+      "segments": [
+        {
+          "part": 13,
+          "offset": 140169412,
+          "length": 74376504
+        }
+      ]
+    },
+    {
+      "path": "game/art/frontendshaders.p3d",
+      "size": 85054,
+      "sha256": "1c67cb0aab162b51ca17a5a7953dc167c264f7f4a2ee3dee62e44fe050094077",
+      "segments": [
+        {
+          "part": 13,
+          "offset": 214545916,
+          "length": 85054
+        }
+      ]
+    },
+    {
+      "path": "game/audio/audio.p3d",
+      "size": 14805,
+      "sha256": "a4ecafb344a79a70a337362e56e22f789d108fb8eb0653b556388800eea1bafb",
+      "segments": [
+        {
+          "part": 13,
+          "offset": 214630970,
+          "length": 14805
+        }
+      ]
+    },
+    {
+      "path": "game/audio/boot_strap.p3d",
+      "size": 1529610,
+      "sha256": "fad12f68f580171d5c627b4f1a988eec85a3413be38b3fd208580ffa500a5967",
+      "segments": [
+        {
+          "part": 13,
+          "offset": 214645775,
+          "length": 1529610
+        }
+      ]
+    },
+    {
+      "path": "game/cementfiles.p3d",
+      "size": 619,
+      "sha256": "408d6bddd60182ef36afcc1d5050028a7d314259300490df39d354a18f7b84c4",
+      "segments": [
+        {
+          "part": 13,
+          "offset": 216175385,
+          "length": 619
+        }
+      ]
+    },
+    {
+      "path": "game/default.xex",
+      "size": 14397440,
+      "sha256": "fda520ae3721eaddede1fd773af3ad2f6099a5ae2981849fb07ed4c7a8b53afe",
+      "segments": [
+        {
+          "part": 13,
+          "offset": 216176004,
+          "length": 14397440
+        }
+      ]
+    },
+    {
+      "path": "game/nxeart",
+      "size": 1105920,
+      "sha256": "972a56c3b11f31212500315458d0d80a866a4b4e63e169db1b198c0e1cff0bd8",
+      "segments": [
+        {
+          "part": 13,
+          "offset": 230573444,
+          "length": 1105920
+        }
+      ]
+    },
+    {
+      "path": "game/proto_uv.dat",
+      "size": 1024,
+      "sha256": "a381afaabb3619e61821873c821ffca1d58801973835b6f25a3e3c17e9e3dbe6",
+      "segments": [
+        {
+          "part": 13,
+          "offset": 231679364,
+          "length": 1024
+        }
+      ]
+    },
+    {
+      "path": "game/scripts.rcf",
+      "size": 120832,
+      "sha256": "f44e0bc5d84434bf730f9dd210866ef1215ca99170e6c070fe48ecaa524a4a92",
+      "segments": [
+        {
+          "part": 13,
+          "offset": 231680388,
+          "length": 120832
+        }
+      ]
+    },
+    {
+      "path": "game/scripts/frevents.lua",
+      "size": 4383,
+      "sha256": "16cb587894bffa709833288fe4ad24a8025e38f0d524aa4310c345342ecfb3fc",
+      "segments": [
+        {
+          "part": 13,
+          "offset": 231801220,
+          "length": 4383
+        }
+      ]
+    },
+    {
+      "path": "game/scripts/statsachievements_tod.p3d",
+      "size": 8683,
+      "sha256": "581227c82485b56ce39284825e9a5e52d406d17870142b9fa6c3574c58380999",
+      "segments": [
+        {
+          "part": 13,
+          "offset": 231805603,
+          "length": 8683
+        }
+      ]
+    },
+    {
+      "path": "game/shaders.rcf",
+      "size": 11051,
+      "sha256": "4fd119bbfc57e7bac5fb3fef16fc9f0d38b42548911293ef56c4814fa1af8776",
+      "segments": [
+        {
+          "part": 13,
+          "offset": 231814286,
+          "length": 11051
+        }
+      ]
+    },
+    {
+      "path": "game/skuinfo.p3d",
+      "size": 186,
+      "sha256": "1c5e4ca26d5bb3faca67cf93455f77c61377a966f2063f9667edb39b1787bf91",
+      "segments": [
+        {
+          "part": 13,
+          "offset": 231825337,
+          "length": 186
+        }
+      ]
+    }
+  ],
+  "source_identity_sha256": "ea15579ce7a45045ca313f06221090c575ad6c6affd26932a8d59393732ba3a4"
+}
