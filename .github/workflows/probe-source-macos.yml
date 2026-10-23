@@ -16,9 +16,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - variant: native-normal-depth-range
+          - variant: native-static-constants
             renderer: native
-            extra: --normal-depth-range
+            extra: --static-constants
     runs-on: macos-26
     timeout-minutes: 120
     env:

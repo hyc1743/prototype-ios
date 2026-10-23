@@ -84,6 +84,64 @@ def constant_descriptor_source(text):
     return replace_once(text, before, after)
 
 
+def static_constants_source(text):
+    text = text.replace('VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC', 'constant_descriptor_type')
+    text = replace_once(text, '  VkDescriptorSet set_constants = VK_NULL_HANDLE;',
+        '''  VkDescriptorSet set_constants = VK_NULL_HANDLE;
+  bool use_static_constants = false;
+  VkDescriptorType constant_descriptor_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;''')
+    text = replace_once(text, '  // Set 1: the five constant buffers, dynamic so one set serves every draw.',
+        '''  use_static_constants = REXCVAR_GET(proto_apple_static_constants);
+  constant_descriptor_type = use_static_constants ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+                                                  : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+  REXLOG_INFO("[native] per-draw static constant descriptors={}", use_static_constants);
+  // Set 1: the five constant buffers, dynamic so one set serves every draw.''')
+    text = replace_once(text,
+        '''            {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 256},
+        };''',
+        '''            {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 256},
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 16384},
+        };''')
+    text = replace_once(text, '        pool_info.poolSizeCount = 3;',
+                        '        pool_info.poolSizeCount = use_static_constants ? 4 : 3;')
+    text = replace_once(text,
+        '''                                &d.set_constants, SpirvShaderTranslator::kConstantBufferCount,
+                                d.offsets);''',
+        '''                                &d.set_constants,
+                                use_static_constants ? 0u : SpirvShaderTranslator::kConstantBufferCount,
+                                use_static_constants ? nullptr : d.offsets);''')
+    text = replace_once(text,
+        '  if (!bound_offsets_valid || std::memcmp(bound_offsets, d.offsets, sizeof(d.offsets))) {',
+        '  if (use_static_constants || !bound_offsets_valid || std::memcmp(bound_offsets, d.offsets, sizeof(d.offsets))) {')
+    text = replace_once(text, '    d.set_constants = set_constants;',
+                        '    d.set_constants = draw_constants_set;')
+    return replace_once(text, '  // Record.\n  if (!BeginPass(targets)) return skip(14);',
+        '''  VkDescriptorSet draw_constants_set = set_constants;
+  if (use_static_constants) {
+    draw_constants_set = AllocateSet(layout_constants);
+    if (!draw_constants_set) return skip(9);
+    const VkDeviceSize offsets[] = {system_offset, vs_float_offset, ps_float_offset,
+                                    bool_loop_offset, fetch_offset};
+    const VkDeviceSize ranges[] = {sizeof(SpirvShaderTranslator::SystemConstants),
+        kFloatConstantsBytes, kFloatConstantsBytes, kBoolLoopConstantsBytes, kFetchConstantsBytes};
+    VkDescriptorBufferInfo infos[SpirvShaderTranslator::kConstantBufferCount] = {};
+    VkWriteDescriptorSet writes[SpirvShaderTranslator::kConstantBufferCount] = {};
+    for (uint32_t i = 0; i < SpirvShaderTranslator::kConstantBufferCount; ++i) {
+      infos[i] = {stream_buffer, offsets[i], ranges[i]};
+      writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+      writes[i].dstSet = draw_constants_set;
+      writes[i].dstBinding = i;
+      writes[i].descriptorCount = 1;
+      writes[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+      writes[i].pBufferInfo = &infos[i];
+    }
+    dfn().vkUpdateDescriptorSets(vk, SpirvShaderTranslator::kConstantBufferCount,
+                                writes, 0, nullptr);
+  }
+  // Record.
+  if (!BeginPass(targets)) return skip(14);''')
+
+
 def exception_source(text):
     text = replace_once(text, '#include <signal.h>', '#include <signal.h>\n#include <unistd.h>')
     return replace_once(text, '''  }
@@ -167,6 +225,8 @@ REXCVAR_DEFINE_UINT32(proto_apple_debug_raster, 0, "Prototype",
                        "Diagnostic: bit 0 no depth/stencil, bit 1 no cull, bit 2 solid post, bit 3 fixed post VS");
 REXCVAR_DEFINE_BOOL(proto_apple_normal_depth, false, "Prototype",
                        "Diagnostic: preserve guest depth through a non-reversed host viewport");
+REXCVAR_DEFINE_BOOL(proto_apple_static_constants, false, "Prototype",
+                       "Diagnostic: use immutable per-draw constant descriptors without dynamic offsets");
 
 namespace p2::native {
 namespace shaders {''')
@@ -422,6 +482,7 @@ namespace shaders {''')
         translation->GetOrCreateShaderModule();
       }''')
     text = constant_descriptor_source(capture_pass_source(alias_pass_source(attachment_pass_source(text))))
+    text = static_constants_source(text)
     return replace_once(text, '  // Record.\n  if (!BeginPass(targets)) return skip(14);',
         '''  if (capture_all && setup.active_ps &&
       setup.active_ps->ucode_data_hash() == UINT64_C(0xFEECC8EB051119C6)) {

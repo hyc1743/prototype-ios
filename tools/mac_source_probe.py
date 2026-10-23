@@ -112,6 +112,7 @@ def probe(args):
     report["debug_raster"] = args.debug_raster
     report["post_cycle"] = args.post_cycle
     report["normal_depth_range"] = args.normal_depth_range
+    report["static_constants"] = args.static_constants
     try:
         generated = args.generated.resolve()
         verify_generated(generated)
@@ -169,6 +170,8 @@ def probe(args):
         arguments.append("--proto_apple_debug_raster=" + str(args.debug_raster))
         if args.normal_depth_range:
             arguments.append("--proto_apple_normal_depth=true")
+        if args.static_constants:
+            arguments.append("--proto_apple_static_constants=true")
         if args.safe_native:
             arguments.extend(["--gpu_specialize_texture_signs=false", "--p2_native_copy_specialization=false",
                 "--p2_native_structured_jumps=false", "--p2_native_binding_revalidate=false",
@@ -251,6 +254,7 @@ def main():
     parser.add_argument("--metal-fast-math", type=int, choices=(0, 1, 2))
     parser.add_argument("--post-cycle", action="store_true")
     parser.add_argument("--normal-depth-range", action="store_true")
+    parser.add_argument("--static-constants", action="store_true")
     result = probe(parser.parse_args())
     print(json.dumps(result, indent=2))
     return 0 if result["status"] == "observation_finished" else 1
