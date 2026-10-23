@@ -78,7 +78,11 @@ def renderer_source(text):
     text = replace_once(text, '#include "native_geometry_shaders.h"',
                         '#include "native_geometry_shaders.h"\n#include "PrototypePrimitiveIndices.h"')
     text = replace_once(text, 'namespace p2::native {\nnamespace shaders {',
-        '''REXCVAR_DEFINE_UINT32(proto_apple_debug_raster, 0, "Prototype",
+        '''static std::atomic<uint64_t> prototype_probe_max_draws{0};
+extern "C" uint64_t PrototypeNativeProbeMaxDraws() {
+  return prototype_probe_max_draws.load(std::memory_order_relaxed);
+}
+REXCVAR_DEFINE_UINT32(proto_apple_debug_raster, 0, "Prototype",
                        "Diagnostic only: bit 0 bypasses depth/stencil, bit 1 bypasses culling");
 
 namespace p2::native {
@@ -90,8 +94,10 @@ namespace shaders {''')
   if (REXCVAR_GET(proto_apple_debug_raster) & 2u) key.cull_mode = VK_CULL_MODE_NONE;
   key.layout = (uint64_t(st.counts[0]) << 48)''')
     text = replace_once(text, '  // Water debug cycle: advance once a frame after the water appeared (cached setups do not',
-        '''  if (std::getenv("PROTOTYPE_NATIVE_DUMP") && frame_draw_count >= 1000 && capture_count == 0)
-    ArmCapture("Apple scene diagnosis");
+        '''  if (std::getenv("PROTOTYPE_NATIVE_DUMP") && frame_draw_count >= 1000) {
+    prototype_probe_max_draws.store(frame_draw_count, std::memory_order_relaxed);
+    if (capture_count == 0) ArmCapture("Apple scene diagnosis");
+  }
   // Water debug cycle: advance once a frame after the water appeared (cached setups do not''')
     text = replace_once(text,
         '''      const std::string path =
@@ -214,6 +220,13 @@ namespace shaders {''')
 
 
 def audio_source(text):
+    text = replace_once(text, 'void SDLAudioDriver::Pump() {\n  using Clock',
+        '''void SDLAudioDriver::Pump() {
+#if defined(__APPLE__)
+  if (!SDL_SetCurrentThreadPriority(SDL_THREAD_PRIORITY_HIGH))
+    REXAPU_WARN("[audio] Cannot raise pacing thread priority: {}", SDL_GetError());
+#endif
+  using Clock''')
     text = replace_once(text, '  desired_spec.channels = frame_channels_;\n  sdl_device_channels_ = frame_channels_;',
         '''#if defined(__APPLE__)
   // A six-channel logical endpoint may be negotiated even for iPhone speakers.
