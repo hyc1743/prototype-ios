@@ -14,6 +14,7 @@ extern uint64_t svc_dispatch(int, uint64_t *, uint64_t);
 extern void prototype_bind_guest_hooks(uint8_t *, size_t);
 extern void prototype_read_native_pad(uint64_t *, int32_t[4]);
 extern void guest_clock_read_wait(void);
+extern void prototype_show_credits(void);
 typedef struct { uint32_t key, flags; uint64_t value[2]; } ConfigEntry;
 _Static_assert(sizeof(ConfigEntry) == 24, "libnx homebrew ABI");
 static uint8_t *guest_base;
@@ -140,6 +141,7 @@ void *prototype_libnx_resolve(const char *name) {
     ENTRY("prototype_libnx_app_init", prototype_libnx_app_init);
     ENTRY("prototype_find_device", prototype_find_device);
     ENTRY("prototype_platform_exit", platform_exit);
+    ENTRY("prototype_show_credits", prototype_show_credits);
     ENTRY("prototype_success", success);
     ENTRY("prototype_unavailable", unavailable);
     ENTRY("prototype_application_type", application_type);

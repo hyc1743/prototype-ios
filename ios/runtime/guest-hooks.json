@@ -323,6 +323,13 @@
       "symbol": "prototype_platform_exit",
       "expected_original": "fd7bb9a9fd030091e03f00b945ff6697",
       "evidence": "SDK main0x58510 termination calls0x26a76a0, bounded FDE132; flush+__libnx_exit0x2d07fe0"
+    },
+    {
+      "offset": 39954384,
+      "slot": 1068,
+      "symbol": "prototype_show_credits",
+      "expected_original": "20b400b0003846f9c01d00b4fd7baea9",
+      "evidence": "Original main BL0x58538 -> Switch credit splash; watchdog stack main+0x261a838 -> framebufferCreate0x2d06494; FDEsize1012"
     }
   ]
 }

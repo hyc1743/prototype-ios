@@ -145,10 +145,10 @@ def patch_sources(source, profile, runtime):
     host = source / "dm/host"
     (host / "main.c").write_bytes(patch_main((host / "main.c").read_bytes()))
     for path in sorted(runtime.iterdir()):
-        if path.suffix in {".c", ".h", ".inc"}:
+        if path.suffix in {".c", ".m", ".h", ".inc"}:
             shutil.copyfile(path, host / path.name)
     make = (host / "Makefile").read_text(encoding="utf8")
-    names = " ".join(path.name for path in sorted(runtime.glob("*.c")))
+    names = " ".join(path.name for path in sorted(runtime.iterdir()) if path.suffix in {".c", ".m"})
     make = replace_once(make, "SRC=main.c loader.c", f"SRC={names} main.c loader.c")
     make = replace_once(make, "../gfx/vk/*.m", "")
     (host / "Makefile").write_text(make, encoding="utf8")
