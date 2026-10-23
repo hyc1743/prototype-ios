@@ -16,9 +16,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - variant: native-static-constants
+          - variant: native-post-vertex-arithmetic
             renderer: native
-            extra: --static-constants
+            extra: --relax-post-vertex
     runs-on: macos-26
     timeout-minutes: 120
     env:

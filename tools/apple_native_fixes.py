@@ -227,6 +227,8 @@ REXCVAR_DEFINE_BOOL(proto_apple_normal_depth, false, "Prototype",
                        "Diagnostic: preserve guest depth through a non-reversed host viewport");
 REXCVAR_DEFINE_BOOL(proto_apple_static_constants, false, "Prototype",
                        "Diagnostic: use immutable per-draw constant descriptors without dynamic offsets");
+REXCVAR_DEFINE_BOOL(proto_apple_relax_post_vertex, false, "Prototype",
+                       "Diagnostic: compare native arithmetic for the full-screen vertex shader");
 
 namespace p2::native {
 namespace shaders {''')
@@ -239,6 +241,9 @@ namespace shaders {''')
     key.depth_test = key.depth_write = key.stencil_test = 0;
   }
   if (REXCVAR_GET(proto_apple_debug_raster) & 2u) key.cull_mode = VK_CULL_MODE_NONE;
+  if (REXCVAR_GET(proto_apple_relax_post_vertex) && vs &&
+      vs->ucode_data_hash() == UINT64_C(0x8CF6223D9D62D0AD))
+    key.tessellation_reserved = 6;
   if ((prototype_post_probe_mode || (REXCVAR_GET(proto_apple_debug_raster) & 4u)) && ps &&
       ps->ucode_data_hash() == UINT64_C(0xFEECC8EB051119C6)) {
     key.tessellation_reserved = prototype_post_probe_mode ? prototype_post_probe_mode :
@@ -253,7 +258,8 @@ namespace shaders {''')
         '  VkShaderModule water_debug_ps = VK_NULL_HANDLE;\n'
         '  VkShaderModule prototype_debug_fullscreen_vs = VK_NULL_HANDLE;\n'
         '  VkShaderModule prototype_debug_scene_ps = VK_NULL_HANDLE;\n'
-        '  VkShaderModule prototype_debug_vertex_data_ps = VK_NULL_HANDLE;')
+        '  VkShaderModule prototype_debug_vertex_data_ps = VK_NULL_HANDLE;\n'
+        '  std::unordered_map<VulkanShader::VulkanTranslation*, VkShaderModule> prototype_relaxed_vs;')
     text = replace_once(text, '  if (key.tessellation_reserved == 1) {',
                         '  if (key.tessellation_reserved == 1 || key.tessellation_reserved == 2) {')
     text = replace_once(text, '    if (water_debug_ps) job.pixel = water_debug_ps;',
@@ -263,7 +269,44 @@ namespace shaders {''')
     }
     job.pixel = water_debug_ps;''')
     text = replace_once(text, '  job.geometry = geometry;\n  job.layout = layout;',
-        '''  if (key.tessellation_reserved == 3) {
+        '''  if (key.tessellation_reserved == 6) {
+    auto found = prototype_relaxed_vs.find(vs);
+    if (found == prototype_relaxed_vs.end()) {
+      const auto& bytes = vs->translated_binary();
+      if (bytes.size() < 20 || bytes.size() % sizeof(uint32_t)) return VK_NULL_HANDLE;
+      std::vector<uint32_t> input(bytes.size()/sizeof(uint32_t)), output;
+      std::memcpy(input.data(), bytes.data(), bytes.size());
+      output.insert(output.end(), input.begin(), input.begin()+5);
+      uint32_t removed = 0;
+      for (size_t i = 5; i < input.size();) {
+        const uint32_t count = input[i] >> 16;
+        if (!count || count > input.size()-i) return VK_NULL_HANDLE;
+        if ((input[i]&0xFFFFu) == uint32_t(spv::OpDecorate) && count == 3 &&
+            input[i+2] == uint32_t(spv::DecorationNoContraction)) {
+          ++removed;
+        } else output.insert(output.end(), input.begin()+i, input.begin()+i+count);
+        i += count;
+      }
+      REXLOG_INFO("[native] post vertex native arithmetic: {} precision decorations removed", removed);
+      if (const char* dump = std::getenv("PROTOTYPE_SPIRV_DUMP")) {
+        auto path = std::filesystem::path(dump) / fmt::format("shader_{:016X}_relaxed.spirv.bin.vert",
+            vs->shader().ucode_data_hash());
+        if (FILE* file = std::fopen(path.string().c_str(), "wb")) {
+          std::fwrite(output.data(), sizeof(uint32_t), output.size(), file);
+          std::fclose(file);
+        }
+      }
+      auto module = rex::ui::vulkan::util::CreateShaderModule(
+          device, output.data(), output.size()*sizeof(uint32_t));
+      found = prototype_relaxed_vs.emplace(vs, module).first;
+    }
+    if (!found->second) {
+      REXLOG_ERROR("[native] Pipeline creation failed: diagnostic native vertex arithmetic");
+      return VK_NULL_HANDLE;
+    }
+    job.vertex = found->second;
+  }
+  if (key.tessellation_reserved == 3) {
     if (!prototype_debug_scene_ps) {
       std::vector<uint32_t> spirv;
       if (tessellation::CompileFragmentShader(
@@ -335,6 +378,8 @@ namespace shaders {''')
     dfn().vkDestroyShaderModule(vk, prototype_debug_scene_ps, nullptr);
   if (prototype_debug_vertex_data_ps)
     dfn().vkDestroyShaderModule(vk, prototype_debug_vertex_data_ps, nullptr);
+  for (const auto& entry : prototype_relaxed_vs)
+    if (entry.second) dfn().vkDestroyShaderModule(vk, entry.second, nullptr);
   textures.Shutdown();''')
     text = replace_once(text, '  // Water debug cycle: advance once a frame after the water appeared (cached setups do not',
         '''  if (std::getenv("PROTOTYPE_NATIVE_DUMP") && frame_draw_count >= 1000) {
