@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: prototype-macos-source-probe-${{ github.sha }}
+  group: prototype-macos-source-probe-${{ github.sha }}-${{ inputs.profile || 'direct' }}
   cancel-in-progress: false
 
 jobs:
