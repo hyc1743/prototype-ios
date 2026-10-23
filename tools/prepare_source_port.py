@@ -287,6 +287,10 @@ def apple_memory_source(text):
 
   length = static_cast<size_t>(region_size - (requested - address));'''
     text = replace_once(text, old, new)
+    # The memory-query unit fixture exercises only this function. The full
+    # pinned SDK source also contains the shared file-mapping implementation.
+    if "  int oflag;\n  switch (access) {" not in text:
+        return text
     text = replace_once(text,
 '''  int oflag;
   switch (access) {
