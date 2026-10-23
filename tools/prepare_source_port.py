@@ -324,10 +324,9 @@ def apple_memory_source(text):
 #endif''',
 '''  int ret = -1;
 #if defined(REX_PLATFORM_IOS) && REX_PLATFORM_IOS
-  // iOS can reject a multi-gigabyte POSIX shared-memory object before the VM
-  // reservation step. A sparse, unlinked file in this app's own tmp directory
-  // gives MAP_SHARED the same backing and lifetime without consuming disk space
-  // until pages are actually written.
+  // Use an unlinked sparse file in this app's own temporary directory as the
+  // MAP_SHARED backing. This avoids a named shared-memory object and leaves no
+  // temporary directory entry after the descriptor has been created.
   std::error_code temp_error;
   const auto temp_directory = std::filesystem::temp_directory_path(temp_error);
   if (temp_error) {

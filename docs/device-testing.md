@@ -13,15 +13,17 @@
 `com.apple.developer.kernel.extended-virtual-addressing` 能力，并确认最终签名和
 描述文件允许该能力。仅把 plist 放进 IPA 不会赋予权限。当前日志显示的
 `Unable to reserve the 4gb guest address space` 是共享映射句柄创建失败；该日志尚未
-证明是扩展地址权限问题。正在构建的版本改用应用临时目录里的稀疏文件作共享后备，
-并会在 `engine.log` 写出文件创建、扩展和后续地址映射的具体系统错误。
+证明是扩展地址权限问题。`v0.1.0-native-dev.3` 已改用应用临时目录里的稀疏文件
+作共享后备，并在 `engine.log` 写出文件创建、扩展和后续地址映射的具体系统错误。
+请从该版本 Release 重新签名安装后再测，保留 Documents 中已经解包的 `game/`。
 原 SDK 需要预留从 `0` 到 `0x11FFFFFFF` 的连续 guest 窗口（4.5 GiB 虚拟地址）；
 预留地址空间与实际占用同等大小的物理内存是不同概念。
 
 这项能力的定义见 Apple 官方文档：
 `https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.kernel.extended-virtual-addressing`。
-不同签名工具是否保留自定义能力需要通过最终签名检查确认。当前发布包没有
-请求动态代码执行或 JIT 的能力。
+不同签名工具是否保留自定义能力需要通过最终签名检查确认。`weixing3` 使用的
+NRO 宿主不创建本项目的 Xbox guest arena，因此同一签名工具能运行 weixing3
+并不能单独确认这项能力已应用到 Prototype。当前发布包没有请求动态代码执行或 JIT 的能力。
 
 ## 资源与首次启动
 

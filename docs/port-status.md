@@ -2,19 +2,20 @@
 
 目标：公共 GitHub 仓库云端构建、发布 iOS IPA 和每卷不超过 1024 MB 的游戏资源。
 
-当前开发包为 `v0.1.0-native-dev.2`，构建运行 39897931198，提交
-`25e7fab12b12ecb40f42c4f80ae1af78844c062a`。IPA 为 25,388,237 字节，SHA-256：
-`35701d43bbc0fc94968ac26cdaed5810b875dfac33bd546871f8c38a186eaf2f`。
-已独立核验全部 53,211 个函数定义、设备平台、动态库、清单与许可证，Release
-的五个附件大小和 SHA-256 均与本地一致。该版本修复预连接手柄漏掉事件的问题，
-相关原生 C++ 回归测试在 Linux CI 通过；300 秒完整游戏探测已完成。
+当前开发包为 `v0.1.0-native-dev.3`，构建运行 39942415814，提交
+`7d49958917d8b021f2c2899b3f367e044c7b65ea`。IPA 为 25,388,341 字节，SHA-256：
+`91d475580c54a2293668a48441f9401a1f7d8648000eed6367fa551ccee3ce39`。
+已独立核验全部 53,211 个函数定义、设备平台、动态库、清单与许可证。
+此版在 iOS 用应用临时目录内 unlink 的稀疏文件创建共享 arena 后备，并记录详细错误。
+已通过 CI 测试和原生 iOS SDK 编译，设备运行结果待用户重签后回报。
 
 用户在 iPhone 17 Pro Max 上完成资源解包后提供的设备日志表明：分卷导入已成功，
 MoltenVK 已在 A19 Pro 上创建设备和 UIKit swapchain，但 ReX runtime 随后因
 `CreateFileMappingHandle` 返回无效而停止：`Unable to reserve the 4gb guest address space`。
 这一步发生在 guest 映射和游戏主模块启动之前；日志没有记录 `shm_open`／`ftruncate`
 底层 errno，因此目前不能把它归因于签名能力缺失。`weixing3` 使用 NRO 宿主路线，
-不经过相同的 Xbox guest 共享 arena。iOS 专用临时文件映射后备及底层错误日志正在构建。
+不经过相同的 Xbox guest 共享 arena。`native-dev.3` 已替换 iOS 共享映射后备；
+需由同一设备重测，并根据新 `engine.log` 判断是否进入后续 guest 地址区间 reserve/map 阶段。
 
 该路线的 300 秒 ARM64 macOS 观察（39897938439）已确认 7.21 GB 真实资源完整加载：
 SDK 打开了启动前已存在的虚拟手柄，记录到前缓冲帧和 `[p2-frame]` 场景统计，
