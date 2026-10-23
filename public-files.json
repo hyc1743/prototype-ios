@@ -105,6 +105,7 @@
   "tools/patch_libnx_host.py",
   "tools/prepare_nxnative.py",
   "tools/prepare_source_port.py",
+  "tools/seal_probe_evidence.py",
   "tools/publish_resources.py",
   "tools/resource_import_smoke.py",
   "tools/rewrite_nro.py",

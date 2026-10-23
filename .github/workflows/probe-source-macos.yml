@@ -60,6 +60,11 @@ jobs:
           git -C references/prototype-switch checkout --detach FETCH_HEAD
       - name: Compile and observe with verified resources
         run: python tools/mac_source_probe.py --generated "$RUNNER_TEMP/prototype-codegen" --download-parts --renderer ${{ matrix.renderer }} ${{ matrix.extra }}
+      - name: Seal private shader observations
+        if: always()
+        env:
+          PROTOTYPE_CODEGEN_KEY: ${{ secrets.PROTOTYPE_CODEGEN_KEY }}
+        run: python tools/seal_probe_evidence.py out/mac-source-probe/private/spirv out/mac-source-probe/evidence/shaders.enc
       - name: Upload observations and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
