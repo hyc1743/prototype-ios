@@ -7,10 +7,58 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from apple_native_fixes import audio_source, renderer_source, translator_source
+from apple_native_fixes import audio_source, renderer_source, translator_source, alias_pass_source
 
 
 class AppleNativeFixTests(unittest.TestCase):
+    def test_alias_clear_cannot_leave_the_draw_outside_a_render_pass(self):
+        compiler = shutil.which('g++') or shutil.which('clang++')
+        if not compiler:
+            self.skipTest('C++ compiler unavailable')
+        fixture = r'''
+#include <iostream>
+namespace xenos { enum class PrimitiveType {kRectangleList}; }
+namespace reg {
+struct VGT_DRAW_INITIATOR {xenos::PrimitiveType prim_type=xenos::PrimitiveType::kRectangleList;};
+struct RB_SURFACE_INFO {int msaa_samples=0;};
+}
+struct Registers {template<class T> T Get() {return {};}};
+struct Setup {struct {int* depth;int* color[2];} targets;};
+struct Renderer {
+  bool in_pass=false,edram_depth_alias_clear=true;
+  int target=1,targets=1;
+  Registers r;
+  Setup setup{{&target,{nullptr,nullptr}}};
+  void AliasDepthClearToColor(int) {in_pass=false;}
+  bool BeginPass(int) {in_pass=true;return true;}
+  void skip(int) {}
+  void Draw() {
+  // Record.
+  if (!BeginPass(targets)) return skip(14);
+  if (edram_depth_alias_clear && setup.targets.depth && !setup.targets.color[0] &&
+      setup.targets.color[1] == nullptr) {
+    auto draw_initiator = r.Get<reg::VGT_DRAW_INITIATOR>();
+    if (draw_initiator.prim_type == xenos::PrimitiveType::kRectangleList) {
+      AliasDepthClearToColor(r.Get<reg::RB_SURFACE_INFO>().msaa_samples);
+    }
+  }
+    std::cout<<in_pass;
+  }
+};
+int main(){Renderer renderer;renderer.Draw();}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            for label, source, expected in [('before', fixture, '0'),
+                                             ('after', alias_pass_source(fixture), '1')]:
+                cpp = directory / (label + '.cpp')
+                cpp.write_text(source)
+                executable = directory / (label + ('.exe' if sys.platform == 'win32' else ''))
+                subprocess.run([compiler, '-std=c++17', str(cpp), '-o', str(executable)],
+                               check=True, capture_output=True)
+                output = subprocess.run([str(executable)], check=True, capture_output=True, text=True).stdout
+                self.assertEqual(output, expected)
+
     def test_rectangle_pc_phi_includes_the_late_added_predecessor(self):
         compiler = shutil.which('g++') or shutil.which('clang++')
         if not compiler:

@@ -2,6 +2,52 @@
 from prepare_source_port import replace_once
 
 
+def alias_pass_source(text):
+    alias = '''  if (edram_depth_alias_clear && setup.targets.depth && !setup.targets.color[0] &&
+      setup.targets.color[1] == nullptr) {
+    auto draw_initiator = r.Get<reg::VGT_DRAW_INITIATOR>();
+    if (draw_initiator.prim_type == xenos::PrimitiveType::kRectangleList) {
+      AliasDepthClearToColor(r.Get<reg::RB_SURFACE_INFO>().msaa_samples);
+    }
+  }
+'''
+    text = replace_once(text, alias, '')
+    # AliasDepthClearToColor closes the active rendering scope and uses its
+    # own standalone scope. It must run before recording the actual draw.
+    return replace_once(text, '  // Record.\n  if (!BeginPass(targets)) return skip(14);',
+                        alias + '\n  // Record.\n  if (!BeginPass(targets)) return skip(14);')
+
+
+def exception_source(text):
+    text = replace_once(text, '#include <signal.h>', '#include <signal.h>\n#include <unistd.h>')
+    return replace_once(text, '''  }
+}
+
+void ExceptionHandler::Install(Handler fn, void* data) {''', '''  }
+  // Returning from an unhandled host fault retries the faulting instruction
+  // forever. In MoltenVK this looked like a silent black-screen hang.
+  const char message[] = "[prototype-source] unhandled host fault; forwarding to OS handler\\n";
+  (void)write(STDERR_FILENO, message, sizeof(message) - 1);
+  const struct sigaction* previous = signal_number == SIGILL ? &original_sigill_handler_
+                                                           : &original_sigsegv_handler_;
+#if REX_PLATFORM_MAC
+  if (signal_number == SIGBUS) previous = &original_sigbus_handler_;
+#endif
+  if (previous->sa_handler != SIG_DFL && previous->sa_handler != SIG_IGN) {
+    if (previous->sa_flags & SA_SIGINFO) previous->sa_sigaction(signal_number, signal_info, signal_context);
+    else previous->sa_handler(signal_number);
+    return;
+  }
+  struct sigaction fatal = {};
+  fatal.sa_handler = SIG_DFL;
+  sigemptyset(&fatal.sa_mask);
+  (void)sigaction(signal_number, &fatal, nullptr);
+  (void)raise(signal_number);
+}
+
+void ExceptionHandler::Install(Handler fn, void* data) {''')
+
+
 def translator_source(text):
     # Rectangle iteration adds another predecessor to the continue block.
     # The original builds its PC Phi before adding that predecessor, leaving
@@ -124,7 +170,7 @@ def renderer_source(text):
           translation->Dump(dump, "spirv");
         translation->GetOrCreateShaderModule();
       }''')
-    return text
+    return alias_pass_source(text)
 
 
 def audio_source(text):

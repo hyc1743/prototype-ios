@@ -29,6 +29,7 @@ PROTOTYPE_COMMIT = "292de4b382dbe335011d8b4f56ec4212df5ef74c"
 PATCH_SHA256 = "a7ac79c90273ed4b17233f8f88381183270f7f232b47aa134c651e4ae4677bcc"
 CODEGEN_PATCH_SHA256 = "f9e06d2fc0e34db6805bdd6612bc8a00d5577834fc001f822634a2076bcd04d1"
 PATCHED_SDK_INPUTS = {
+    "src/core/exception_handler_posix.cpp": "c615444b11c59377536e0616aff93b4500bc0052de47b74208f4d36a673b46ac",
     "src/graphics/pipeline/shader/spirv_translator.cpp": "770a6383a78ea395bcb6901281639dccb09bfe1554033689ea067be1bb6dc524",
     "src/audio/sdl/sdl_audio_driver.cpp": "1e9a0d9b459ee089bb53ff3529d0f70fde1e5659b79fbd0ae2aa759ed3610186",
     "src/input/sdl/sdl_input_driver.cpp": "5317f106ddd16cbf68b590061dba188a8090b05238f460e25f24eec27840a30c",
@@ -522,6 +523,8 @@ endif()
     write("src/audio/sdl/sdl_audio_driver.cpp", audio_source)
     from apple_native_fixes import translator_source
     write("src/graphics/pipeline/shader/spirv_translator.cpp", translator_source)
+    from apple_native_fixes import exception_source
+    write("src/core/exception_handler_posix.cpp", exception_source)
 
     write("include/rex/thread/fiber.h", lambda text: text.replace(
           "#if REX_PLATFORM_SWITCH\n", "#if REX_PLATFORM_SWITCH || defined(REX_PLATFORM_IOS)\n").replace(
