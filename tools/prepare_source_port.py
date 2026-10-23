@@ -29,6 +29,7 @@ PROTOTYPE_COMMIT = "292de4b382dbe335011d8b4f56ec4212df5ef74c"
 PATCH_SHA256 = "a7ac79c90273ed4b17233f8f88381183270f7f232b47aa134c651e4ae4677bcc"
 CODEGEN_PATCH_SHA256 = "f9e06d2fc0e34db6805bdd6612bc8a00d5577834fc001f822634a2076bcd04d1"
 PATCHED_SDK_INPUTS = {
+    "src/input/sdl/sdl_input_driver.cpp": "5317f106ddd16cbf68b590061dba188a8090b05238f460e25f24eec27840a30c",
     "CMakeLists.txt": "c6bef64cd480a56f3c090663b9e8a57698ea69ac62cf84e0a95b48d981e24557",
     "src/system/CMakeLists.txt": "132476ae77986b2c08dab266db787dc00588820ba3f339d82feadec96d6106ee",
     "src/graphics/CMakeLists.txt": "5b4d9b4dfbf79185f9a7057866e17c3f569fe515f09e19b1bd98b61fdc0dd24a",
@@ -286,6 +287,31 @@ def apple_memory_source(text):
     return replace_once(text, old, new)
 
 
+def apple_input_source(text):
+    text = replace_once(text, '      SDL_Gamepad_initialized_ = true;', '''      SDL_Gamepad_initialized_ = true;
+
+      // UIKit/importer or a host frontend may initialize SDL before the SDK
+      // subscribes. SDL does not replay already-delivered device-added events.
+      // Queue a snapshot through the same buffered event path as hotplug.
+      int existing_count = 0;
+      SDL_JoystickID* existing = SDL_GetGamepads(&existing_count);
+      if (existing) {
+        for (int i = 0; i < existing_count; ++i) {
+          SDL_Event added{};
+          added.type = SDL_EVENT_GAMEPAD_ADDED;
+          added.gdevice.which = existing[i];
+          HandleEvent(added);
+        }
+        SDL_free(existing);
+      }''')
+    return replace_once(text,
+        'void SDLInputDriver::OnControllerDeviceAddedLocked(const SDL_Event& event) {',
+        '''void SDLInputDriver::OnControllerDeviceAddedLocked(const SDL_Event& event) {
+  // The startup snapshot can overlap a real hotplug event. Keep one SDK device
+  // per SDL instance and leave connection order / guest assignment unchanged.
+  if (GetControllerIndexFromInstanceID(event.gdevice.which)) return;''')
+
+
 def overlay_sdk(sdk, diff_root):
     """Apply exact reviewed source edits and keep every before/after hash/diff."""
     records = []
@@ -361,6 +387,7 @@ endif()
                             "  return true;\n#endif\n}\n\nvoid SpirvToolsContext::Shutdown()")
     write("src/ui/vulkan/spirv_tools_context.cpp", spirv)
     write("src/core/memory_posix.cpp", apple_memory_source)
+    write("src/input/sdl/sdl_input_driver.cpp", apple_input_source)
 
     write("include/rex/thread/fiber.h", lambda text: text.replace(
           "#if REX_PLATFORM_SWITCH\n", "#if REX_PLATFORM_SWITCH || defined(REX_PLATFORM_IOS)\n").replace(

@@ -55,6 +55,8 @@ def observations(text):
         "scripted_input_events": len(re.findall(r"\[prototype-mac-probe\] input button=\d+ ms=\d+", text)),
         "frontbuffer_log_observed": "[native] Frontbuffer " in text,
         "scene_frame_diagnostic_observed": "[p2-frame] copy_phase=" in text,
+        "sdk_controller_open_observed": "SDL OnControllerDeviceAdded: connection order" in text,
+        "audio_data_frames_reported": sum(int(n) for n in re.findall(r"\[audio\] SDL in 10 s: (\d+) frames with data", text)),
         "pipeline_failure_lines": [line for line in text.splitlines() if "Pipeline creation failed" in line][:20],
     }
 
@@ -169,7 +171,7 @@ def main():
     parser.add_argument("--out", type=Path, default=ROOT / "out/mac-source-probe")
     parser.add_argument("--parts", type=Path, default=ROOT / "out/probe-resource-parts")
     parser.add_argument("--download-parts", action="store_true")
-    parser.add_argument("--seconds", type=int, choices=(60, 120, 180), default=120)
+    parser.add_argument("--seconds", type=int, choices=(60, 120, 180, 300), default=300)
     result = probe(parser.parse_args())
     print(json.dumps(result, indent=2))
     return 0 if result["status"] == "observation_finished" else 1

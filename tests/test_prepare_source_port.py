@@ -10,7 +10,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-from prepare_source_port import apple_fiber_source, apple_memory_source, extract_archive, generated_sources, replace_once, source_sha
+from prepare_source_port import apple_fiber_source, apple_memory_source, apple_input_source, extract_archive, generated_sources, replace_once, source_sha
 
 
 MEMORY_QUERY_FIXTURE = '''#include <cstddef>
@@ -59,6 +59,65 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
 
 
 class SourcePreparationTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("clang++") or shutil.which("g++"), "native C++ compiler unavailable")
+    def test_preconnected_and_hotplug_snapshot_share_one_device(self):
+        fixture = '''#include <vector>
+#include <optional>
+#include <cassert>
+using SDL_JoystickID = unsigned;
+constexpr unsigned SDL_EVENT_GAMEPAD_ADDED=1;
+struct SDL_Event { unsigned type{}; struct { SDL_JoystickID which{}; } gdevice; };
+static std::vector<SDL_JoystickID> connected;
+static unsigned freed=0;
+SDL_JoystickID* SDL_GetGamepads(int* count) {
+  *count=int(connected.size());
+  return connected.empty() ? nullptr : connected.data();
+}
+void SDL_free(void*) { ++freed; }
+class SDLInputDriver {
+ public:
+  bool SDL_Gamepad_initialized_=false;
+  std::vector<SDL_Event> pending;
+  std::vector<SDL_JoystickID> devices;
+  void Start() {
+      SDL_Gamepad_initialized_ = true;
+  }
+  void HandleEvent(SDL_Event event) { pending.push_back(event); }
+  std::optional<unsigned> GetControllerIndexFromInstanceID(SDL_JoystickID id) {
+    for(unsigned i=0;i<devices.size();++i) if(devices[i]==id) return i;
+    return {};
+  }
+  void OnControllerDeviceAddedLocked(const SDL_Event& event);
+  void Drain() { for(auto event:pending) OnControllerDeviceAddedLocked(event); pending.clear(); }
+};
+void SDLInputDriver::OnControllerDeviceAddedLocked(const SDL_Event& event) {
+  devices.push_back(event.gdevice.which);
+}
+int main() {
+  SDLInputDriver empty;
+  empty.Start(); empty.Drain(); assert(empty.devices.empty() && freed==0);
+  connected={17,42};
+  SDLInputDriver driver;
+  driver.HandleEvent({SDL_EVENT_GAMEPAD_ADDED,{17}});
+  driver.Start();
+  driver.HandleEvent({SDL_EVENT_GAMEPAD_ADDED,{42}});
+  driver.Drain();
+  assert(driver.devices==connected && freed==1);
+  driver.HandleEvent({SDL_EVENT_GAMEPAD_ADDED,{99}}); driver.Drain();
+  assert((driver.devices==std::vector<unsigned>{17,42,99}));
+  driver.devices.erase(driver.devices.begin());
+  driver.HandleEvent({SDL_EVENT_GAMEPAD_ADDED,{17}}); driver.Drain();
+  assert((driver.devices==std::vector<unsigned>{42,99,17}));
+}
+'''
+        compiler = shutil.which("clang++") or shutil.which("g++")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, executable = root / "input.cpp", root / ("input.exe" if sys.platform == "win32" else "input")
+            source.write_text(apple_input_source(fixture))
+            subprocess.run([compiler, "-std=c++17", str(source), "-o", str(executable)], check=True, capture_output=True)
+            subprocess.run([str(executable)], check=True, capture_output=True)
+
     def test_ios_region_overlay_preserves_permission_decoder_and_refuses_changed_anchors(self):
         patched = apple_memory_source(MEMORY_QUERY_FIXTURE)
         permissions = MEMORY_QUERY_FIXTURE[MEMORY_QUERY_FIXTURE.index("  if ((info.protection"):]

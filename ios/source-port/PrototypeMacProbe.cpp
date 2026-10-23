@@ -17,10 +17,10 @@ static void SDLCALL UpdatePad(void *userdata) {
   if (!pad.joystick) return;
   const Uint64 elapsed = SDL_GetTicks() - pad.start;
   const int phase = int(elapsed / 8000);
-  // Start once, then periodically confirm. These are ordinary SDL gamepad
+  // Alternate Start and confirm. These are ordinary SDL gamepad
   // events; the translated game and its input provider receive no patches.
   const int pressed = phase > 0 && elapsed % 8000 < 250
-      ? (phase == 1 ? SDL_GAMEPAD_BUTTON_START : SDL_GAMEPAD_BUTTON_SOUTH) : -1;
+      ? (phase % 2 ? SDL_GAMEPAD_BUTTON_START : SDL_GAMEPAD_BUTTON_SOUTH) : -1;
   if (pressed == pad.previous) return;
   for (int button = 0; button < 15; ++button)
     SDL_SetJoystickVirtualButton(pad.joystick, button, button == pressed);

@@ -51,6 +51,12 @@ class SourceProbeTests(unittest.TestCase):
         result = observations(log + "[native] Frontbuffer ABC\n[native] Pipeline creation failed VS\n")
         self.assertTrue(result["frontbuffer_log_observed"])
         self.assertEqual(len(result["pipeline_failure_lines"]), 1)
+        self.assertFalse(result["sdk_controller_open_observed"])
+        result = observations("SDL OnControllerDeviceAdded: connection order 0, device 1.\n"
+                              "[audio] SDL in 10 s: 1876 frames with data\n"
+                              "[audio] SDL in 10 s: 1500 frames with data\n")
+        self.assertTrue(result["sdk_controller_open_observed"])
+        self.assertEqual(result["audio_data_frames_reported"], 3376)
 
 
 if __name__ == "__main__":
