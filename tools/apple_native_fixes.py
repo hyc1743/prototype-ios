@@ -227,8 +227,8 @@ REXCVAR_DEFINE_BOOL(proto_apple_normal_depth, false, "Prototype",
                        "Diagnostic: preserve guest depth through a non-reversed host viewport");
 REXCVAR_DEFINE_BOOL(proto_apple_static_constants, false, "Prototype",
                        "Diagnostic: use immutable per-draw constant descriptors without dynamic offsets");
-REXCVAR_DEFINE_BOOL(proto_apple_relax_post_vertex, false, "Prototype",
-                       "Diagnostic: compare native arithmetic for the full-screen vertex shader");
+REXCVAR_DEFINE_BOOL(proto_apple_relax_post_vertex, true, "Prototype",
+                       "Use native arithmetic for Prototype's full-screen vertex shader on Apple GPUs");
 
 namespace p2::native {
 namespace shaders {''')
@@ -287,7 +287,7 @@ namespace shaders {''')
         } else output.insert(output.end(), input.begin()+i, input.begin()+i+count);
         i += count;
       }
-      REXLOG_INFO("[native] post vertex native arithmetic: {} precision decorations removed", removed);
+      REXLOG_WARN("[native] post vertex native arithmetic: {} precision decorations removed", removed);
       if (const char* dump = std::getenv("PROTOTYPE_SPIRV_DUMP")) {
         auto path = std::filesystem::path(dump) / fmt::format("shader_{:016X}_relaxed.spirv.bin.vert",
             vs->shader().ucode_data_hash());

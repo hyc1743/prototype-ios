@@ -6,7 +6,7 @@ on:
       profile:
         description: Runtime renderer comparison
         type: choice
-        default: single-thread
+        default: direct
         options:
           - single-thread
           - direct
@@ -14,6 +14,7 @@ on:
           - normal-depth
           - static-constants
           - relax-post-vertex
+          - strict-post-vertex
 
 permissions:
   contents: read
@@ -72,12 +73,13 @@ jobs:
         run: |
           flags=()
           case "$PROBE_PROFILE" in
-            single-thread|"") flags=(--single-thread-recording) ;;
-            direct) ;;
+            single-thread) flags=(--single-thread-recording) ;;
+            direct|"") ;;
             post-cycle) flags=(--post-cycle) ;;
             normal-depth) flags=(--normal-depth-range) ;;
             static-constants) flags=(--static-constants) ;;
             relax-post-vertex) flags=(--relax-post-vertex) ;;
+            strict-post-vertex) flags=(--strict-post-vertex) ;;
             *) exit 2 ;;
           esac
           python tools/mac_source_probe.py --generated "$RUNNER_TEMP/prototype-codegen" --download-parts --renderer ${{ matrix.renderer }} "${flags[@]}"
@@ -90,7 +92,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Prototype-macOS-source-observation-${{ matrix.variant }}-${{ inputs.profile || 'single-thread' }}
+          name: Prototype-macOS-source-observation-${{ matrix.variant }}-${{ inputs.profile || 'direct' }}
           path: out/mac-source-probe/evidence/
           if-no-files-found: error
           retention-days: 7

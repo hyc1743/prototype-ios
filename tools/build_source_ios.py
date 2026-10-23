@@ -205,6 +205,8 @@ def build(args):
               "audio_output": "stereo with paced guest callback requests",
               "apple_submission_draw_limit": 128,
               "apple_audio_producer_stream": True,
+              "apple_post_vertex_native_math_default": True,
+              "apple_post_vertex_shader": "8CF6223D9D62D0AD",
               "native_renderer_sha256": sha256(stage / "prototype/src/native/native_renderer.cpp"),
               "ipa_sha256": sha256(ipa), "ipa_bytes": ipa.stat().st_size, **native}
     (output / "build-report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf8")

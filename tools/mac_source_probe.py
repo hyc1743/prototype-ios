@@ -113,7 +113,7 @@ def probe(args):
     report["post_cycle"] = args.post_cycle
     report["normal_depth_range"] = args.normal_depth_range
     report["static_constants"] = args.static_constants
-    report["relax_post_vertex"] = args.relax_post_vertex
+    report["relax_post_vertex"] = not args.strict_post_vertex
     report["single_thread_recording"] = args.single_thread_recording
     try:
         generated = args.generated.resolve()
@@ -176,6 +176,8 @@ def probe(args):
             arguments.append("--proto_apple_static_constants=true")
         if args.relax_post_vertex:
             arguments.append("--proto_apple_relax_post_vertex=true")
+        elif args.strict_post_vertex:
+            arguments.append("--proto_apple_relax_post_vertex=false")
         if args.single_thread_recording:
             arguments.append("--p2_native_record_thread=false")
         if args.safe_native:
@@ -261,7 +263,9 @@ def main():
     parser.add_argument("--post-cycle", action="store_true")
     parser.add_argument("--normal-depth-range", action="store_true")
     parser.add_argument("--static-constants", action="store_true")
-    parser.add_argument("--relax-post-vertex", action="store_true")
+    vertex_math = parser.add_mutually_exclusive_group()
+    vertex_math.add_argument("--relax-post-vertex", action="store_true")
+    vertex_math.add_argument("--strict-post-vertex", action="store_true")
     parser.add_argument("--single-thread-recording", action="store_true")
     result = probe(parser.parse_args())
     print(json.dumps(result, indent=2))
