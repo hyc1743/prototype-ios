@@ -227,8 +227,8 @@ def apple_fiber_source(text):
 
 def apple_memory_source(text):
     """Use public iPhoneOS VM APIs and a sandbox-local shared mapping backing."""
-    text = replace_once(text, "#include <cstring>",
-                        "#include <cstring>\n#include <cstdlib>\n#include <system_error>")
+    text = replace_once(text, "#include <cstddef>",
+                        "#include <cstddef>\n#include <cstdlib>\n#include <system_error>")
     text = replace_once(text, "#include <mach/mach_vm.h>",
                         "#if !defined(REX_PLATFORM_IOS) || !REX_PLATFORM_IOS\n#include <mach/mach_vm.h>\n#endif")
     old = '''  mach_vm_address_t address = reinterpret_cast<mach_vm_address_t>(base_address);

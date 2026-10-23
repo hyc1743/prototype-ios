@@ -13,8 +13,8 @@
 `com.apple.developer.kernel.extended-virtual-addressing` 能力，并确认最终签名和
 描述文件允许该能力。仅把 plist 放进 IPA 不会赋予权限。当前日志显示的
 `Unable to reserve the 4gb guest address space` 是共享映射句柄创建失败；该日志尚未
-证明是扩展地址权限问题，更新版会先在 `engine.log` 写出共享后备文件创建／扩展的
-具体系统错误。
+证明是扩展地址权限问题。正在构建的版本改用应用临时目录里的稀疏文件作共享后备，
+并会在 `engine.log` 写出文件创建、扩展和后续地址映射的具体系统错误。
 原 SDK 需要预留从 `0` 到 `0x11FFFFFFF` 的连续 guest 窗口（4.5 GiB 虚拟地址）；
 预留地址空间与实际占用同等大小的物理内存是不同概念。
 
