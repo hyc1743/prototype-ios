@@ -144,11 +144,15 @@ def probe(args):
         shader_dump = out / "private/spirv"
         shader_dump.mkdir()
         env["PROTOTYPE_SPIRV_DUMP"] = str(shader_dump)
+        native_dump = evidence / "render-targets"
+        native_dump.mkdir()
+        env["PROTOTYPE_NATIVE_DUMP"] = str(native_dump)
         arguments = [str(executable), "--game_data_root=" + str(game), "--user_data_root=" + str(saves),
                      "--cache_root=" + str(cache), "--log_file=" + str(evidence / "engine.log"),
                      "--log_level=info", "--log_flush_level=info", "--p2_frame_diagnostics=true",
                      "--p2_native_occlusion_queries=false", "--audio_dump_output_s=15",
                      "--audio_dump_output_from_s=10", "--p2_renderer=" + args.renderer]
+        arguments.append("--proto_apple_debug_raster=" + str(args.debug_raster))
         if args.safe_native:
             arguments.extend(["--gpu_specialize_texture_signs=false", "--p2_native_copy_specialization=false",
                 "--p2_native_structured_jumps=false", "--p2_native_binding_revalidate=false",
@@ -228,6 +232,7 @@ def main():
     parser.add_argument("--seconds", type=int, choices=(60, 120, 180, 300), default=300)
     parser.add_argument("--renderer", choices=("native", "xenos"), default="native")
     parser.add_argument("--safe-native", action="store_true")
+    parser.add_argument("--debug-raster", type=int, choices=(0, 1, 2, 3), default=0)
     result = probe(parser.parse_args())
     print(json.dumps(result, indent=2))
     return 0 if result["status"] == "observation_finished" else 1

@@ -77,6 +77,31 @@ def translator_source(text):
 def renderer_source(text):
     text = replace_once(text, '#include "native_geometry_shaders.h"',
                         '#include "native_geometry_shaders.h"\n#include "PrototypePrimitiveIndices.h"')
+    text = replace_once(text, 'namespace p2::native {',
+        '''REXCVAR_DEFINE_UINT32(proto_apple_debug_raster, 0, "Prototype",
+                       "Diagnostic only: bit 0 bypasses depth/stencil, bit 1 bypasses culling");
+
+namespace p2::native {''')
+    text = replace_once(text, '  key.layout = (uint64_t(st.counts[0]) << 48)',
+        '''  if (REXCVAR_GET(proto_apple_debug_raster) & 1u) {
+    key.depth_test = key.depth_write = key.stencil_test = 0;
+  }
+  if (REXCVAR_GET(proto_apple_debug_raster) & 2u) key.cull_mode = VK_CULL_MODE_NONE;
+  key.layout = (uint64_t(st.counts[0]) << 48)''')
+    text = replace_once(text, '  // Water debug cycle: advance once a frame after the water appeared (cached setups do not',
+        '''  if (std::getenv("PROTOTYPE_NATIVE_DUMP") && frame_draw_count >= 1000 && capture_count == 0)
+    ArmCapture("Apple scene diagnosis");
+  // Water debug cycle: advance once a frame after the water appeared (cached setups do not''')
+    text = replace_once(text,
+        '''      const std::string path =
+          fmt::format("sdmc:/switch/Prototype2/logs/{}_{}x{}_vk{}.bin", it->name, it->width,
+                      it->height, uint32_t(it->format));''',
+        '''      const char* apple_dump = std::getenv("PROTOTYPE_NATIVE_DUMP");
+      const std::string path = apple_dump
+          ? (std::filesystem::path(apple_dump) / fmt::format("{}_{}x{}_vk{}.bin", it->name,
+              it->width, it->height, uint32_t(it->format))).string()
+          : fmt::format("sdmc:/switch/Prototype2/logs/{}_{}x{}_vk{}.bin", it->name, it->width,
+                        it->height, uint32_t(it->format));''')
     text = replace_once(text,
         '    bool convert_fan = false, convert_loop = false, strip = false, reset_enabled = false;',
         '    bool convert_fan = false, convert_loop = false, strip = false, reset_enabled = false;\n'

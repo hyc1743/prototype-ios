@@ -16,12 +16,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - variant: native-safe
+          - variant: native-capture
             renderer: native
-            extra: --safe-native
-          - variant: xenos
-            renderer: xenos
-            extra: ''
+            extra: --debug-raster 0
+          - variant: native-no-depth-cull
+            renderer: native
+            extra: --debug-raster 3
     runs-on: macos-26
     timeout-minutes: 120
     env:
