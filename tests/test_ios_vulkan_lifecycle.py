@@ -19,11 +19,10 @@ class IOSVulkanLifecycleTests(unittest.TestCase):
         self.assertIn('TASK_VM_INFO', source)
         self.assertIn('UIApplicationDidReceiveMemoryWarningNotification', source)
 
-    def test_resource_root_probe_uses_unmodified_game_tree(self):
+    def test_release_candidate_uses_chinese_resource_tree(self):
         source = (ROOT/'ios/source-port/PrototypeSDLMain.mm').read_text(encoding='utf8')
-        self.assertIn('diagnostic_game_root=game', source)
-        self.assertIn('documents.fileSystemRepresentation) + "/game"', source)
-        self.assertNotIn('documents.fileSystemRepresentation) + "/game-zh"', source)
+        self.assertIn('documents.fileSystemRepresentation) + "/game-zh"', source)
+        self.assertIn('arguments.emplace_back("--game_data_root=" + localizedRoot)', source)
 
 
 if __name__ == '__main__':
