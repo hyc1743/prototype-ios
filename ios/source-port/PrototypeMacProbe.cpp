@@ -3,9 +3,39 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <cstdio>
+#include <csignal>
+#include <dlfcn.h>
+#include <execinfo.h>
+#include <sys/ucontext.h>
+#include <unistd.h>
+#include <rex/system/thread_state.h>
 
 int prototype_game_main(int argc, char **argv);
 extern "C" uint64_t PrototypeNativeProbeMaxDraws();
+
+static void ProbeFault(int signal, siginfo_t *info, void *raw) {
+  const auto* context = static_cast<ucontext_t*>(raw);
+  const uintptr_t pc = context->uc_mcontext->__ss.__pc;
+  Dl_info symbol{};
+  dladdr(reinterpret_cast<void*>(pc), &symbol);
+  dprintf(STDERR_FILENO, "[probe-fault] signal=%d address=%p pc=%p symbol=%s image=%p symbol_address=%p\n",
+          signal, info->si_addr, reinterpret_cast<void*>(pc), symbol.dli_sname ? symbol.dli_sname : "?",
+          symbol.dli_fbase, symbol.dli_saddr);
+  if (auto* state = rex::runtime::ThreadState::Get()) {
+    const auto* ppc = state->context();
+    dprintf(STDERR_FILENO, "[probe-fault] guest lr=%08llx sp=%08x r3=%08x r4=%08x r5=%08x r11=%08x last_indirect=%08x\n",
+            static_cast<unsigned long long>(ppc->lr), ppc->r1.u32, ppc->r3.u32, ppc->r4.u32,
+            ppc->r5.u32, ppc->r11.u32, ppc->last_indirect_target);
+  }
+  void* stack[48];
+  const int count = backtrace(stack, 48);
+  backtrace_symbols_fd(stack, count, STDERR_FILENO);
+  struct sigaction fatal{};
+  fatal.sa_handler = SIG_DFL;
+  sigemptyset(&fatal.sa_mask);
+  sigaction(signal, &fatal, nullptr);
+  raise(signal);
+}
 
 struct ProbePad {
   SDL_Joystick *joystick = nullptr;
@@ -38,6 +68,12 @@ static void SDLCALL UpdatePad(void *userdata) {
 int main(int argc, char **argv) {
   std::setvbuf(stdout, nullptr, _IOLBF, 0);
   std::setvbuf(stderr, nullptr, _IOLBF, 0);
+  struct sigaction fault{};
+  fault.sa_sigaction = ProbeFault;
+  fault.sa_flags = SA_SIGINFO;
+  sigemptyset(&fault.sa_mask);
+  sigaction(SIGSEGV, &fault, nullptr);
+  sigaction(SIGBUS, &fault, nullptr);
   SDL_SetMainReady();
   if (!SDL_Init(SDL_INIT_GAMEPAD)) {
     std::fprintf(stderr, "[prototype-mac-probe] SDL input failed: %s\n", SDL_GetError());

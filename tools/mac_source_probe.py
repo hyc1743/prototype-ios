@@ -138,6 +138,7 @@ def probe(args):
             env=env, log=evidence / "compile.log")
         executable = build / "PrototypeNative"
         symbols = run(["xcrun", "nm", "-U", "-j", executable], env=env)
+        run(['xcrun', 'nm', '-n', executable], env=env, log=evidence / 'native-symbols.txt')
         if expected - set(re.findall(r"sub_[0-9a-fA-F]{8}", symbols)):
             raise ValueError("macOS diagnostic is missing translated game functions")
         report.update(compiled=True, translated_functions_verified=len(expected), executable_sha256=sha256(executable))
@@ -165,6 +166,11 @@ def probe(args):
             report['localization'] = {'language': manifest['language'], 'files': len(manifest['files']),
                 'manifest_sha256': sha256(args.localization / 'localization.json')}
             game = private / 'game-zh'
+            if args.original_font:
+                from game_localization import read_archive_file
+                (game / 'art/hud/fonts_latin.gfx').write_bytes(read_archive_file(
+                    private / 'game/00art.rcf', r'\art\hud\fonts_latin.gfx'))
+                report['localization']['original_font_control'] = True
         config = out / "private/prototype.toml"
         shutil.copyfile(ROOT / "ios/config/prototype.toml", config)
         env["PROTOTYPE_CONFIG_PATH"] = str(config)
@@ -285,6 +291,7 @@ def main():
     parser.add_argument("--single-thread-recording", action="store_true")
     parser.add_argument("--draw-batch", type=int, choices=(128, 256), default=256)
     parser.add_argument("--localization", type=Path)
+    parser.add_argument("--original-font", action='store_true')
     result = probe(parser.parse_args())
     print(json.dumps(result, indent=2))
     return 0 if result["status"] == "observation_finished" else 1

@@ -16,6 +16,8 @@ on:
           - relax-post-vertex
           - strict-post-vertex
           - batch-256
+          - unlocalized
+          - original-font
 
 permissions:
   contents: read
@@ -86,9 +88,13 @@ jobs:
             relax-post-vertex) flags=(--relax-post-vertex) ;;
             strict-post-vertex) flags=(--strict-post-vertex) ;;
             batch-256) flags=(--draw-batch=256) ;;
+            unlocalized) ;;
+            original-font) flags=(--original-font) ;;
             *) exit 2 ;;
           esac
-          python tools/mac_source_probe.py --generated "$RUNNER_TEMP/prototype-codegen" --localization "$RUNNER_TEMP/prototype-chinese" --download-parts --renderer ${{ matrix.renderer }} "${flags[@]}"
+          locale=(--localization "$RUNNER_TEMP/prototype-chinese")
+          if [ "$PROBE_PROFILE" = unlocalized ]; then locale=(); fi
+          python tools/mac_source_probe.py --generated "$RUNNER_TEMP/prototype-codegen" "${locale[@]}" --download-parts --renderer ${{ matrix.renderer }} "${flags[@]}"
       - name: Seal private shader observations
         if: always()
         env:
