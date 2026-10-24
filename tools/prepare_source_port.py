@@ -507,11 +507,12 @@ endif()
         text = replace_once(
             text,
             "namespace rex {\nnamespace ui {\nnamespace vulkan {",
-            "namespace rex {\nnamespace ui {\nnamespace vulkan {\n\nvoid prototype_vulkan_install_lifecycle_gate(VulkanDevice::Functions*, VkDevice);")
+            "namespace rex {\nnamespace ui {\nnamespace vulkan {\n\nvoid prototype_vulkan_install_lifecycle_gate(VulkanDevice::Functions*, VkDevice, PFN_vkGetDeviceProcAddr);")
         return replace_once(
             text,
             "  // Get the queues.\n",
-            "  prototype_vulkan_install_lifecycle_gate(&dfn, device->device_);\n\n  // Get the queues.\n")
+            "  prototype_vulkan_install_lifecycle_gate(&dfn, device->device_,\n"
+            "      device->vulkan_instance()->functions().vkGetDeviceProcAddr);\n\n  // Get the queues.\n")
     write("src/ui/vulkan/vulkan_device.cpp", vulkan_device_lifecycle)
     # Runtime SPIRV validation is optional in this SDK already. Preserve the
     # explicit false result for a static build rather than searching host SDKs

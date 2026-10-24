@@ -18,6 +18,8 @@ VkQueue g_last_queue = VK_NULL_HANDLE;
 PFN_vkQueueSubmit g_queue_submit = nullptr;
 PFN_vkQueuePresentKHR g_queue_present = nullptr;
 PFN_vkAcquireNextImageKHR g_acquire_next_image = nullptr;
+PFN_vkQueueWaitIdle g_queue_wait_idle = nullptr;
+PFN_vkDeviceWaitIdle g_device_wait_idle = nullptr;
 
 void EnterQueue(VkQueue queue) {
   std::unique_lock lock(g_mutex);
@@ -66,15 +68,25 @@ VkResult VKAPI_CALL GateAcquireNextImage(VkDevice device, VkSwapchainKHR swapcha
 namespace rex::ui::vulkan {
 
 void prototype_vulkan_install_lifecycle_gate(VulkanDevice::Functions* functions,
-                                              VkDevice device) {
+                                              VkDevice device,
+                                              PFN_vkGetDeviceProcAddr get_device_proc_addr) {
   if (!functions) return;
   std::lock_guard lock(g_mutex);
   if (g_installed) return;
   g_queue_submit = functions->vkQueueSubmit;
   g_queue_present = functions->vkQueuePresentKHR;
   g_acquire_next_image = functions->vkAcquireNextImageKHR;
+  g_queue_wait_idle = get_device_proc_addr
+                          ? reinterpret_cast<PFN_vkQueueWaitIdle>(
+                                get_device_proc_addr(device, "vkQueueWaitIdle"))
+                          : nullptr;
+  g_device_wait_idle = get_device_proc_addr
+                           ? reinterpret_cast<PFN_vkDeviceWaitIdle>(
+                                 get_device_proc_addr(device, "vkDeviceWaitIdle"))
+                           : nullptr;
   g_device = device;
-  if (!g_queue_submit || !g_queue_present || !g_acquire_next_image) {
+  if (!g_queue_submit || !g_queue_present || !g_acquire_next_image ||
+      (!g_queue_wait_idle && !g_device_wait_idle)) {
     std::fprintf(stderr, "[prototype-vulkan] lifecycle gate unavailable: missing Vulkan function\n");
     return;
   }
@@ -105,8 +117,8 @@ extern "C" void prototype_vulkan_suspend(int suspended) {
   }
   VkResult result = VK_SUCCESS;
   if (requested) {
-    if (device) result = ::vkDeviceWaitIdle(device);
-    else if (queue) result = ::vkQueueWaitIdle(queue);
+    if (g_device_wait_idle && device) result = g_device_wait_idle(device);
+    else if (g_queue_wait_idle && queue) result = g_queue_wait_idle(queue);
   }
   std::fprintf(stderr, "[prototype-vulkan] lifecycle suspended=%d installed=%d idle=%d\n",
                requested ? 1 : 0, g_installed ? 1 : 0, int(result));

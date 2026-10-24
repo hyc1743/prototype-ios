@@ -17,7 +17,7 @@ class VulkanLifecycleGateTests(unittest.TestCase):
     def test_sdk_installs_gate_after_loading_device_functions(self):
         source = (ROOT / 'tools/prepare_source_port.py').read_text(encoding='utf8')
         self.assertIn('src/ui/vulkan/vulkan_device.cpp', source)
-        self.assertIn('prototype_vulkan_install_lifecycle_gate(&dfn, device->device_)', source)
+        self.assertIn('prototype_vulkan_install_lifecycle_gate(&dfn, device->device_,', source)
 
     def test_uikit_observers_suspend_before_background_and_resume_active(self):
         source = (ROOT / 'ios/source-port/PrototypeSDLMain.mm').read_text(encoding='utf8')
