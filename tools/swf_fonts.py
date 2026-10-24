@@ -149,3 +149,46 @@ def adapt_font_library(original, chinese, required):
         if kind == 75:
             Font.parse(body)
     return bytes(result), report
+
+
+def adapt_legacy_font_library(original, legacy, chinese, required):
+    """Use the supplied compact Font2 outlines and supplement missing glyphs."""
+    from swf_font_scale import scale_glyph, scale_metric
+    prefix, tags = swf_parts(original)
+    old = {font.ident: font for kind, body in swf_parts(legacy)[1] if kind == 48
+           for font in [Font.parse(body)]}
+    modern = {font.ident: font for kind, body in swf_parts(chinese)[1] if kind == 75
+              for font in [Font.parse(body)]}
+    rebuilt, report = [], []
+    for kind, body in tags:
+        if kind == 75:
+            font = Font.parse(body)
+            if font.ident in (1, 3, 5):
+                needed = required[font.ident] if isinstance(required, dict) else required
+                font.glyphs = {code: scale_glyph(glyph) for code, glyph in font.glyphs.items()}
+                for code in needed:
+                    if code in font.glyphs or code < 32:
+                        continue
+                    donors = [old[1 if font.ident == 1 else 3], old[3], old[1]]
+                    glyph = next((donor.glyphs[code] for donor in donors if code in donor.glyphs), None)
+                    if glyph is None:
+                        glyph = next((scale_glyph(donor.glyphs[code]) for donor in
+                                      (modern[3], modern[1], modern[5]) if code in donor.glyphs), None)
+                    if glyph is None:
+                        raise ValueError(f'Chinese font lacks U+{code:04X}')
+                    font.glyphs[code] = glyph
+                font.metrics = b''.join(scale_metric(font.metrics[i:i+2]) for i in range(0, 6, 2))
+                font.kerning = [(a, b, scale_metric(adjust)) for a, b, adjust in font.kerning]
+                body = font.encode()
+                kind = 48
+                report.append({'name': font.name.rstrip(b'\0').decode(),
+                               'glyphs': len(font.glyphs), 'bytes': len(body), 'format': 'DefineFont2'})
+        elif kind in (13, 62, 73):
+            continue
+        rebuilt.append(struct.pack('<HI', (kind << 6) | 63, len(body))+body)
+    result = bytearray(prefix+b''.join(rebuilt))
+    struct.pack_into('<I', result, 4, len(result))
+    for kind, body in swf_parts(result)[1]:
+        if kind in (48, 75):
+            Font.parse(body)
+    return bytes(result), report

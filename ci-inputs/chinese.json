@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "plaintext_bytes": 5822158,
-  "plaintext_sha256": "1e7b684410ea7b8570586a86d9bebdbe06a6062f6a62eb70c67877096d806db1",
-  "container_sha256": "887ce094cc1986f01889f8c261f54862b0b6f984a64f7868f81cc875751dc525"
+  "plaintext_bytes": 5298789,
+  "plaintext_sha256": "8ebfaf617b46c07ca48aafea983e9bc4b58f8051c5bb33bbf198448ef4bf52c8",
+  "container_sha256": "8e038a19730220a7d0bc6fe1ebadfae7362580d52a6228b505fdd615ae5f3346"
 }
