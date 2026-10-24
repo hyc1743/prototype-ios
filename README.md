@@ -4,18 +4,19 @@
 原始 PPC 翻译、原生渲染器和 ReXGlue SDK，使用 SDL3/UIKit 与 MoltenVK。
 参考实现为本地 `../weixing3` 项目。
 
-原生 IPA 已发布至 [v0.1.0-native-dev.4](https://github.com/hyc1743/prototype-ios/releases/tag/v0.1.0-native-dev.4)，
+原生 IPA 已发布至 [v0.1.0-native-dev.6](https://github.com/hyc1743/prototype-ios/releases/tag/v0.1.0-native-dev.6)，
 为需要自行签名的开发预发行版。资源分卷已发布至
 [resources-v1](https://github.com/hyc1743/prototype-ios/releases/tag/resources-v1)。
-生成 IPA、通过启动测试与完整游戏可玩性是分别验证的项目；
-iPhone 开场动画可播放、菜单可呼出已有用户实机反馈，完整游戏可玩性及存档尚未验证。构建结果见
+本版修正 Apple 上导致后期合成消失的顶点运算兼容路径，同源 macOS 默认配置实测
+已恢复人物、街道和战斗场景，并通过 iOS 编译及独立 IPA 核验。
+iPhone 实际画面、扬声器输出与完整游戏流程仍需实机复测。构建结果见
 [GitHub Actions](https://github.com/hyc1743/prototype-ios/actions)。
 
 `native-dev.2` 修复预先连接的 SDL 手柄未进入 SDK 的问题；`native-dev.3` 为 iOS
 Xbox guest arena 增加应用目录内的稀疏共享映射后备，后续实机日志已确认能完成内存初始化。
-`native-dev.4` 加入游戏图标、英文默认值及旧配置迁移，增加音频缓冲，并为 Apple GPU
-补上矩形/四边形的细分着色器展开路径。动画后黑屏与音频杂音的改善仍需实机复测，
-详见 [本版复测说明](docs/native-dev4.md)。
+`native-dev.6` 接入 SDK 顶点展开、修正渲染通道与描述符更新，默认启用指定顶点程序的
+Apple 算术兼容；音频采用立体声混音、稳定供音节奏与约 5.33 ms 的 iOS 缓冲偏好。
+包内使用游戏图标，默认英文，保留旧配置迁移。详见 [本版验证及复测说明](docs/native-dev6.md)。
 
 ## 资源
 

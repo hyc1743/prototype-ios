@@ -7,7 +7,7 @@
 
 ## 签名和安装
 
-公共 Release 的 `Prototype-native-development.ipa` 未签名，需使用自己的
+当前 Release 的 `Prototype-native-dev.6.ipa` 未签名，需使用自己的
 证书与有效描述文件签名。不要将 Apple ID 密码、私钥或描述文件提交到仓库。
 
 如果设备日志显示地址区间保留／映射失败，签名时使用
@@ -19,7 +19,7 @@
 作共享后备，并在 `engine.log` 写出文件创建、扩展和后续地址映射的具体系统错误。
 后续日志已确认该内存后备修正能够进入游戏；升级测试时保留 Documents 中
 已经解包的 `game/`。针对画面、音频、默认语言与图标的修正见
-[native-dev.4 复测说明](native-dev4.md)。
+[native-dev.6 验证及复测说明](native-dev6.md)。
 原 SDK 需要预留从 `0` 到 `0x11FFFFFFF` 的连续 guest 窗口（4.5 GiB 虚拟地址）；
 预留地址空间与实际占用同等大小的物理内存是不同概念。
 

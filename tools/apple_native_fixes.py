@@ -229,6 +229,8 @@ REXCVAR_DEFINE_BOOL(proto_apple_static_constants, false, "Prototype",
                        "Diagnostic: use immutable per-draw constant descriptors without dynamic offsets");
 REXCVAR_DEFINE_BOOL(proto_apple_relax_post_vertex, true, "Prototype",
                        "Use native arithmetic for Prototype's full-screen vertex shader on Apple GPUs");
+REXCVAR_DEFINE_UINT32(proto_apple_draw_batch, 128, "Prototype",
+                       "Apple bounded GPU draw batch, clamped to 64..256");
 
 namespace p2::native {
 namespace shaders {''')
@@ -506,7 +508,7 @@ namespace shaders {''')
 #if defined(__APPLE__)
   // A full scene may contain thousands of draws. Keep each Metal command
   // buffer bounded so the first gameplay frame cannot trip the watchdog.
-  if (submission_draws >= 128) Submit();
+  if (submission_draws >= std::clamp(REXCVAR_GET(proto_apple_draw_batch), 64u, 256u)) Submit();
 #endif''')
     text = replace_once(text, '    s.pending = true;\n    recording = false;',
                         '    s.pending = true;\n    submission_draws = 0;\n    recording = false;')
@@ -528,6 +530,7 @@ namespace shaders {''')
       }''')
     text = constant_descriptor_source(capture_pass_source(alias_pass_source(attachment_pass_source(text))))
     text = static_constants_source(text)
+    text = performance_source(text)
     return replace_once(text, '  // Record.\n  if (!BeginPass(targets)) return skip(14);',
         '''  if (capture_all && setup.active_ps &&
       setup.active_ps->ucode_data_hash() == UINT64_C(0xFEECC8EB051119C6)) {
@@ -574,6 +577,46 @@ namespace shaders {''')
   }
   // Record.
   if (!BeginPass(targets)) return skip(14);''')
+
+
+def performance_source(text):
+    # Aggregate only real scene frames. All timings already exist in the
+    # renderer; avoid per-draw clocks or flushing a log line every frame.
+    text = replace_once(text, '  uint32_t submission_draws = 0;', '''  uint32_t submission_draws = 0;
+  uint32_t apple_perf_count = 0;
+  double apple_perf_ms = 0;
+  uint64_t apple_perf_draws = 0, apple_perf_submits = 0;
+  uint64_t apple_perf_fence = 0, apple_perf_upload = 0, apple_perf_drain = 0;
+  uint64_t apple_perf_texture = 0, apple_perf_pipeline = 0;
+  uint64_t apple_perf_last_pipeline_ns = 0, apple_perf_last_submits = 0;''')
+    text = replace_once(text, '  last_swap_time = now;\n  at_last_swap = stats();', '''  if (last_swap_time.time_since_epoch().count() && frame_draw_count >= 1200) {
+    apple_perf_ms += std::chrono::duration<double, std::milli>(now-last_swap_time).count();
+    apple_perf_draws += frame_draw_count;
+    apple_perf_submits += stats().submissions - apple_perf_last_submits;
+    apple_perf_fence += frame_fence_wait_ns;
+    apple_perf_upload += frame_upload_wait_ns;
+    apple_perf_drain += frame_drain_wait_ns;
+    apple_perf_texture += frame_texture_ns;
+    apple_perf_pipeline += stats().pipeline_ns - apple_perf_last_pipeline_ns;
+    if (++apple_perf_count == 300) {
+      constexpr double ns_per_frame_ms = 300000000.0;
+      REXLOG_WARN("[apple-perf] 300 scene frames fps={:.2f} draws/frame={:.1f} submits/frame={:.1f} fence_ms={:.2f} upload_ms={:.2f} recorder_ms={:.2f} texture_ms={:.2f} pipeline_ms={:.2f} batch={}",
+          300000.0/apple_perf_ms, double(apple_perf_draws)/300, double(apple_perf_submits)/300,
+          apple_perf_fence/ns_per_frame_ms, apple_perf_upload/ns_per_frame_ms,
+          apple_perf_drain/ns_per_frame_ms, apple_perf_texture/ns_per_frame_ms,
+          apple_perf_pipeline/ns_per_frame_ms, REXCVAR_GET(proto_apple_draw_batch));
+      apple_perf_count = 0; apple_perf_ms = 0;
+      apple_perf_draws = apple_perf_submits = apple_perf_fence = apple_perf_upload = 0;
+      apple_perf_drain = apple_perf_texture = apple_perf_pipeline = 0;
+    }
+  }
+  apple_perf_last_submits = stats().submissions;
+  apple_perf_last_pipeline_ns = stats().pipeline_ns;
+  last_swap_time = now;
+  at_last_swap = stats();''')
+    # Percentile diagnostics must survive the shipped warn-only log level.
+    return text.replace('REXLOG_INFO("[p2-frame] copy_phase=',
+                        'REXLOG_WARN("[p2-frame] copy_phase=')
 
 
 def audio_source(text):

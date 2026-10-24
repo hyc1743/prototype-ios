@@ -115,6 +115,7 @@ def probe(args):
     report["static_constants"] = args.static_constants
     report["relax_post_vertex"] = not args.strict_post_vertex
     report["single_thread_recording"] = args.single_thread_recording
+    report["draw_batch"] = args.draw_batch
     try:
         generated = args.generated.resolve()
         verify_generated(generated)
@@ -170,6 +171,7 @@ def probe(args):
                      "--p2_native_occlusion_queries=false", "--audio_dump_output_s=15",
                      "--audio_dump_output_from_s=10", "--p2_renderer=" + args.renderer]
         arguments.append("--proto_apple_debug_raster=" + str(args.debug_raster))
+        arguments.append("--proto_apple_draw_batch=" + str(args.draw_batch))
         if args.normal_depth_range:
             arguments.append("--proto_apple_normal_depth=true")
         if args.static_constants:
@@ -267,6 +269,7 @@ def main():
     vertex_math.add_argument("--relax-post-vertex", action="store_true")
     vertex_math.add_argument("--strict-post-vertex", action="store_true")
     parser.add_argument("--single-thread-recording", action="store_true")
+    parser.add_argument("--draw-batch", type=int, choices=(128, 256), default=128)
     result = probe(parser.parse_args())
     print(json.dumps(result, indent=2))
     return 0 if result["status"] == "observation_finished" else 1

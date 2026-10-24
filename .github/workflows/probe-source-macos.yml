@@ -15,6 +15,7 @@ on:
           - static-constants
           - relax-post-vertex
           - strict-post-vertex
+          - batch-256
 
 permissions:
   contents: read
@@ -80,6 +81,7 @@ jobs:
             static-constants) flags=(--static-constants) ;;
             relax-post-vertex) flags=(--relax-post-vertex) ;;
             strict-post-vertex) flags=(--strict-post-vertex) ;;
+            batch-256) flags=(--draw-batch=256) ;;
             *) exit 2 ;;
           esac
           python tools/mac_source_probe.py --generated "$RUNNER_TEMP/prototype-codegen" --download-parts --renderer ${{ matrix.renderer }} "${flags[@]}"
