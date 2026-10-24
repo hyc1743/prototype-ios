@@ -1,4 +1,5 @@
 #include "PrototypeNativePad.h"
+#include "../runtime/PrototypeVulkan.h"
 #include <SDL3/SDL.h>
 #include <pthread.h>
 #include <string.h>
@@ -145,6 +146,10 @@ static bool SDLCALL PadWindowEvent(void *userdata, SDL_Event *event) {
 @implementation PrototypeNativePadAttachment
 - (void)setSuspended:(BOOL)suspended {
     if (self.closed) return;
+    // Metal rejects command-buffer submissions once iOS backgrounds this app.
+    // Drain the renderer before the transition and gate queue calls until the
+    // app is active again.
+    prototype_vk_suspend(suspended);
     SDL_LockJoysticks();
     if (Device && Device->windowID == self.windowID) {
         pthread_mutex_lock(&StateMutex);

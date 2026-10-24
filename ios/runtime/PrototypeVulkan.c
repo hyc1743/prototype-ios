@@ -36,18 +36,23 @@ static void leave_queue(void) {
     pthread_mutex_unlock(&graphics_state);
 }
 void prototype_vk_suspend(int suspended) {
+    int requested = !!suspended;
+    int changed;
+    VkResult idle_result = VK_SUCCESS;
     pthread_mutex_lock(&graphics_lifecycle);
     pthread_mutex_lock(&graphics_state);
-    graphics_suspended = !!suspended;
+    changed = graphics_suspended != requested;
+    graphics_suspended = requested;
     VkDevice device = active_device;
-    if (suspended) {
+    if (requested && changed) {
         while (active_queue_calls) pthread_cond_wait(&graphics_changed, &graphics_state);
-    } else pthread_cond_broadcast(&graphics_changed);
+    } else if (!requested && changed) pthread_cond_broadcast(&graphics_changed);
     pthread_mutex_unlock(&graphics_state);
-    if (suspended && device) {
-        VkResult result = vkDeviceWaitIdle(device);
-        if (result != VK_SUCCESS) fprintf(stderr, "Prototype background device idle: %d\n", result);
+    if (requested && changed && device) {
+        idle_result = vkDeviceWaitIdle(device);
     }
+    if (changed) fprintf(stderr, "[prototype-vulkan] lifecycle suspended=%d device=%s idle=%d\n",
+                         requested, device ? "active" : "not-created", idle_result);
     pthread_mutex_unlock(&graphics_lifecycle);
 }
 static VkResult queue_submit(VkQueue queue, uint32_t count, const VkSubmitInfo *submits, VkFence fence) {
