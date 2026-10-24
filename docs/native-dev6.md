@@ -19,6 +19,20 @@ NaN/Inf 控制、原运算和其他着色器。原图元的纯色输出对照此
 实际命中该程序时，日志包含 `post vertex native arithmetic`。
 上述场景观察来自 macOS Apple Paravirtual GPU；iPhone 运行和扬声器输出仍需实机复测。
 
+## 发布包
+
+[v0.1.0-native-dev.6](https://github.com/hyc1743/prototype-ios/releases/tag/v0.1.0-native-dev.6)
+已发布，下载 `Prototype-native-dev.6.ipa`。源码为
+`4c4f7f8ce65cc477a82c3db219d632f26a5c7a6e`，iOS 构建 `40040383604`。
+同一应用代码的默认/关闭兼容复测分别为 `40040616405` / `40040621374`：
+默认恢复场景，关闭后重现黑屏；两组均无 GPU 丢失，着色器验证通过。
+
+独立包核验确认 iOS 设备平台、53,211 个翻译函数、图标、英文默认值、音频时序
+设置与默认顶点兼容均包含在最终包内，渲染器源码摘要匹配该提交。
+IPA 为 27,071,743 字节，SHA-256 为
+`4a9354cd743448279475946af4bf76ef2a48e24610b177fc0f9a9892ff80735e`。
+上传后已逐项比对五个 Release 附件的远端摘要、大小及标签目标提交。
+
 ## 渲染
 
 原生渲染器原先在 geometryShader=false 时直接跳过点、矩形和四边形。
