@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Adapted from fungalspores/prototype-switch prototype/CMakeLists.txt.
 cmake_minimum_required(VERSION 3.25)
-project(PrototypeApple VERSION 0.1.0 LANGUAGES C CXX OBJC OBJCXX ASM)
+project(PrototypeApple VERSION 1.0.0 LANGUAGES C CXX OBJC OBJCXX ASM)
 
 if(NOT APPLE)
     message(FATAL_ERROR "PrototypeApple requires AppleClang and an Apple SDK")
@@ -72,7 +72,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
         MACOSX_BUNDLE_INFO_PLIST "${PROTOTYPE_INFO_PLIST}"
         MACOSX_BUNDLE_GUI_IDENTIFIER "io.github.hyc1743.prototype"
         MACOSX_BUNDLE_BUNDLE_NAME "Prototype"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "0.1.0"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0.0"
         MACOSX_BUNDLE_BUNDLE_VERSION "11"
         XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
         XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
