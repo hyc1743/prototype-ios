@@ -36,8 +36,9 @@ p2_native_async_present = false
 p2_native_occlusion_queries = false
 # Apple full-screen vertex arithmetic compatibility.
 proto_apple_relax_post_vertex = true
-# Bounded batches reduce Metal command-buffer submissions in busy scenes.
-proto_apple_draw_batch = 256
+# Keep the native iOS draw batch at the last known playable size while checking
+# the scene-loss regression reported after native-dev.7.
+proto_apple_draw_batch = 128
 present_effect = "fsr"
 # Prototype 2 specific skips are off: they were matched to its passes, not to Prototype 1's.
 p2_native_skip_depth_prepass = false

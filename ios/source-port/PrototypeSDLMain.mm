@@ -11,6 +11,7 @@
 #import <AVFoundation/AVFoundation.h>
 #import <CoreFoundation/CoreFoundation.h>
 #import "PrototypeImportViewController.h"
+#include <mach/mach.h>
 
 #include <cerrno>
 #include <cstdio>
@@ -58,6 +59,43 @@ static void InstallAudioTiming(void) {
                     AVAudioSessionInterruptionTypeEnded) ConfigureAudioTiming();
             }];
     }
+}
+
+static void LogTaskMemory(void) {
+    task_vm_info_data_t info = {};
+    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+    kern_return_t result = task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&info, &count);
+    if (result == KERN_SUCCESS) {
+        constexpr double megabyte = 1024.0 * 1024.0;
+        fprintf(stderr, "[prototype-memory] footprint_mb=%.1f resident_mb=%.1f\n",
+                info.phys_footprint / megabyte, info.resident_size / megabyte);
+    } else {
+        fprintf(stderr, "[prototype-memory] task_info failed=%d\n", result);
+    }
+}
+
+static void InstallMemoryDiagnostics(void) {
+    static dispatch_source_t timer;
+    static id warningObserver;
+    if (!warningObserver) {
+        warningObserver = [NSNotificationCenter.defaultCenter
+            addObserverForName:UIApplicationDidReceiveMemoryWarningNotification object:nil
+            queue:nil usingBlock:^(NSNotification *) {
+                fprintf(stderr, "[prototype-memory] iOS memory warning\n");
+            }];
+    }
+    if (timer) return;
+    timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0,
+                                   dispatch_get_global_queue(QOS_CLASS_UTILITY, 0));
+    if (!timer) {
+        fprintf(stderr, "[prototype-memory] unable to create sampler\n");
+        return;
+    }
+    dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 5LL * NSEC_PER_SEC),
+                              10LL * NSEC_PER_SEC, NSEC_PER_SEC);
+    dispatch_source_set_event_handler(timer, ^{ LogTaskMemory(); });
+    dispatch_resume(timer);
+    LogTaskMemory();
 }
 
 @interface PrototypeSDLStartupError : UIViewController
@@ -350,6 +388,7 @@ static int SDLCALL PrototypeSDLMain(int argc, char **argv) {
                 continue;
             }
             InstallAudioTiming();
+            InstallMemoryDiagnostics();
             SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "uikit", SDL_HINT_OVERRIDE);
             SDL_SetHint(SDL_HINT_APP_NAME, "Prototype");
             // GameController input is merged with touch by the virtual pad.
@@ -386,6 +425,9 @@ static int SDLCALL PrototypeSDLMain(int argc, char **argv) {
             arguments.emplace_back("--cache_root=" + std::string(documents.fileSystemRepresentation) + "/cache");
             arguments.emplace_back("--log_file=" + std::string(documents.fileSystemRepresentation) + "/engine.log");
             arguments.emplace_back("--video_driver=uikit");
+            // native-dev.7 changed the scene draw batch to 256 without iPhone
+            // validation. Keep this diagnostic candidate at the prior 128.
+            arguments.emplace_back("--proto_apple_draw_batch=128");
             std::vector<char *> pointers;
             for (std::string &argument : arguments) pointers.push_back(argument.data());
             pointers.push_back(nullptr);

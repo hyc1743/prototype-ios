@@ -25,6 +25,16 @@ class IOSVulkanLifecycleTests(unittest.TestCase):
         self.assertIn('if (requested && changed && device)', source)
         self.assertIn('vkDeviceWaitIdle(device)', source)
 
+    def test_vulkan_lifecycle_runtime_is_linked_into_ios_app(self):
+        source = (ROOT/'tools/build_source_ios.py').read_text(encoding='utf8')
+        self.assertIn('"ios/runtime/PrototypeVulkan.c"', source)
+
+    def test_diagnostic_candidate_uses_128_draws_and_reports_memory(self):
+        source = (ROOT/'ios/source-port/PrototypeSDLMain.mm').read_text(encoding='utf8')
+        self.assertIn('--proto_apple_draw_batch=128', source)
+        self.assertIn('TASK_VM_INFO', source)
+        self.assertIn('UIApplicationDidReceiveMemoryWarningNotification', source)
+
 
 if __name__ == '__main__':
     unittest.main()

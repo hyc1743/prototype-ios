@@ -229,7 +229,7 @@ REXCVAR_DEFINE_BOOL(proto_apple_static_constants, false, "Prototype",
                        "Diagnostic: use immutable per-draw constant descriptors without dynamic offsets");
 REXCVAR_DEFINE_BOOL(proto_apple_relax_post_vertex, true, "Prototype",
                        "Use native arithmetic for Prototype's full-screen vertex shader on Apple GPUs");
-REXCVAR_DEFINE_UINT32(proto_apple_draw_batch, 256, "Prototype",
+REXCVAR_DEFINE_UINT32(proto_apple_draw_batch, 128, "Prototype",
                        "Apple bounded GPU draw batch, clamped to 64..256");
 
 namespace p2::native {
