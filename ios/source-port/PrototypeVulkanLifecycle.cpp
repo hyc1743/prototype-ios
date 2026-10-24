@@ -18,8 +18,6 @@ VkQueue g_last_queue = VK_NULL_HANDLE;
 PFN_vkQueueSubmit g_queue_submit = nullptr;
 PFN_vkQueuePresentKHR g_queue_present = nullptr;
 PFN_vkAcquireNextImageKHR g_acquire_next_image = nullptr;
-PFN_vkQueueWaitIdle g_queue_wait_idle = nullptr;
-PFN_vkDeviceWaitIdle g_device_wait_idle = nullptr;
 
 void EnterQueue(VkQueue queue) {
   std::unique_lock lock(g_mutex);
@@ -63,23 +61,6 @@ VkResult VKAPI_CALL GateAcquireNextImage(VkDevice device, VkSwapchainKHR swapcha
   return result;
 }
 
-VkResult VKAPI_CALL GateQueueWaitIdle(VkQueue queue) {
-  EnterQueue(queue);
-  const VkResult result = g_queue_wait_idle(queue);
-  LeaveQueue();
-  return result;
-}
-
-VkResult VKAPI_CALL GateDeviceWaitIdle(VkDevice device) {
-  {
-    std::unique_lock lock(g_mutex);
-    g_changed.wait(lock, [] { return !g_suspended; });
-    ++g_active_calls;
-  }
-  const VkResult result = g_device_wait_idle(device);
-  LeaveQueue();
-  return result;
-}
 }  // namespace
 
 namespace rex::ui::vulkan {
@@ -92,19 +73,14 @@ void prototype_vulkan_install_lifecycle_gate(VulkanDevice::Functions* functions,
   g_queue_submit = functions->vkQueueSubmit;
   g_queue_present = functions->vkQueuePresentKHR;
   g_acquire_next_image = functions->vkAcquireNextImageKHR;
-  g_queue_wait_idle = functions->vkQueueWaitIdle;
-  g_device_wait_idle = functions->vkDeviceWaitIdle;
   g_device = device;
-  if (!g_queue_submit || !g_queue_present || !g_acquire_next_image || !g_queue_wait_idle ||
-      !g_device_wait_idle) {
+  if (!g_queue_submit || !g_queue_present || !g_acquire_next_image) {
     std::fprintf(stderr, "[prototype-vulkan] lifecycle gate unavailable: missing Vulkan function\n");
     return;
   }
   functions->vkQueueSubmit = GateQueueSubmit;
   functions->vkQueuePresentKHR = GateQueuePresent;
   functions->vkAcquireNextImageKHR = GateAcquireNextImage;
-  functions->vkQueueWaitIdle = GateQueueWaitIdle;
-  functions->vkDeviceWaitIdle = GateDeviceWaitIdle;
   g_installed = true;
   std::fprintf(stderr, "[prototype-vulkan] lifecycle gate installed\n");
 }
@@ -113,8 +89,6 @@ void prototype_vulkan_install_lifecycle_gate(VulkanDevice::Functions* functions,
 
 extern "C" void prototype_vulkan_suspend(int suspended) {
   const bool requested = suspended != 0;
-  PFN_vkDeviceWaitIdle wait_idle = nullptr;
-  PFN_vkQueueWaitIdle queue_wait_idle = nullptr;
   VkDevice device = VK_NULL_HANDLE;
   VkQueue queue = VK_NULL_HANDLE;
   {
@@ -123,8 +97,6 @@ extern "C" void prototype_vulkan_suspend(int suspended) {
     g_suspended = requested;
     if (requested) {
       g_changed.wait(lock, [] { return g_active_calls == 0; });
-      wait_idle = g_device_wait_idle;
-      queue_wait_idle = g_queue_wait_idle;
       device = g_device;
       queue = g_last_queue;
     } else {
@@ -133,8 +105,8 @@ extern "C" void prototype_vulkan_suspend(int suspended) {
   }
   VkResult result = VK_SUCCESS;
   if (requested) {
-    if (wait_idle && device) result = wait_idle(device);
-    else if (queue_wait_idle && queue) result = queue_wait_idle(queue);
+    if (device) result = ::vkDeviceWaitIdle(device);
+    else if (queue) result = ::vkQueueWaitIdle(queue);
   }
   std::fprintf(stderr, "[prototype-vulkan] lifecycle suspended=%d installed=%d idle=%d\n",
                requested ? 1 : 0, g_installed ? 1 : 0, int(result));
