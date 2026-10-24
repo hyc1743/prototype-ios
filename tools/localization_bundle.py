@@ -60,6 +60,18 @@ def validate(data):
     if (len(font) != manifest['font']['bytes'] or hashlib.sha256(font).hexdigest() != manifest['font']['sha256']
             or manifest['font']['path'] != 'art/hud/fonts_latin.gfx'):
         raise ValueError('Font identity differs')
+    originals = manifest.get('original_files', [])
+    for item in originals:
+        safe_path(item['path'])
+        if item['bytes'] < 0:
+            raise ValueError('Invalid cloned source size')
+    for table in manifest.get('archive_tables', []):
+        if not re.fullmatch(r'\d\d(?:art|audio|movies|woi)\.rcf', table['archive']):
+            raise ValueError('Invalid private archive index')
+        raw = base64.b64decode(table['data'], validate=True)
+        if (len(raw) != table['bytes'] or len(raw) > 2*1024*1024 or table['offset'] < 60
+                or hashlib.sha256(raw).hexdigest() != table['sha256']):
+            raise ValueError('Private archive index identity differs')
     report = json.loads(files['compatibility-report.json'])
     if report.get('mismatches') or report.get('edited_files') != len(manifest['files']):
         raise ValueError('Localization compatibility report is incomplete')
@@ -108,6 +120,8 @@ def open_bundle(source, destination, key):
 def apply(folder, game_root):
     folder, game_root = Path(folder), Path(game_root)
     manifest = json.loads((folder/'localization.json').read_bytes())
+    if manifest.get('archive_tables'):
+        raise ValueError('Use the native Foundation installer to create the independent archive view')
     sources = {}
     total_bytes = 0
     try:
@@ -131,7 +145,7 @@ def apply(folder, game_root):
                 raise ValueError('Localization output differs: '+edit['path'])
             target = game_root/safe_path(edit['path'])
             target.parent.mkdir(parents=True, exist_ok=True)
-            data = pack(out)
+            data = pack(out) if edit['compressed'] else out
             target.write_bytes(data)
             total_bytes += len(data)
             if index % 2000 == 0:

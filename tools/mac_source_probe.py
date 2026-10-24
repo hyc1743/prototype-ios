@@ -159,9 +159,12 @@ def probe(args):
                  '-o', helper], env=env, log=evidence / 'localization-compile.log')
             run([helper, args.localization.resolve(), private], env=env,
                 log=evidence / 'localization-install.log')
+            run([helper, args.localization.resolve(), private], env=env,
+                log=evidence / 'localization-reopen.log')
             manifest = json.loads((args.localization / 'localization.json').read_bytes())
             report['localization'] = {'language': manifest['language'], 'files': len(manifest['files']),
                 'manifest_sha256': sha256(args.localization / 'localization.json')}
+            game = private / 'game-zh'
         config = out / "private/prototype.toml"
         shutil.copyfile(ROOT / "ios/config/prototype.toml", config)
         env["PROTOTYPE_CONFIG_PATH"] = str(config)

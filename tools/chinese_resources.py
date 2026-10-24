@@ -54,6 +54,46 @@ class GameArchives:
             raise ValueError('Truncated source resource')
         return result
 
+    def view_metadata(self, edits):
+        hidden = {}
+        for edit in edits:
+            name, entry = self.find(edit['path'])
+            hidden.setdefault(entry['archive'], set()).add(path_key('\\'+name.replace('/', '\\')))
+        font_name, font_entry = self.find('art/hud/fonts_latin.gfx')
+        hidden.setdefault(font_entry['archive'], set()).add(path_key('\\'+font_name.replace('/', '\\')))
+        tables = []
+        for archive, keys in sorted(hidden.items()):
+            with (self.root/archive).open('rb') as source:
+                header = source.read(60)
+                endian = '>' if header[34] else '<'
+                offset, size = u32(header, 36, endian), u32(header, 40, endian)
+                source.seek(offset)
+                original = source.read(size)
+            rows = list(struct.iter_unpack(endian+'III', original))
+            used = {row[0] for row in rows}
+            changed = []
+            for key, at, length in rows:
+                if key in keys:
+                    number = 0
+                    while True:
+                        replacement = path_key('\\.prototype-localized\\'+archive+'\\'+f'{key:08X}-{number}')
+                        if replacement not in used:
+                            break
+                        number += 1
+                    used.add(replacement)
+                    key = replacement
+                changed.append((key, at, length))
+            modified = b''.join(struct.pack(endian+'III', *row) for row in sorted(changed))
+            assert len(modified) == len(original) and not keys.intersection(row[0] for row in changed)
+            tables.append({'archive': archive, 'offset': offset, 'bytes': size,
+                           'source_sha256': hashlib.sha256(original).hexdigest(),
+                           'sha256': hashlib.sha256(modified).hexdigest(),
+                           'data': base64.b64encode(modified).decode(), 'hidden_members': len(keys)})
+        resource_manifest = Path(__file__).resolve().parents[1]/'ios/resources/PrototypeData.manifest.json'
+        originals = [{'path': entry['path'].removeprefix('game/'), 'bytes': entry['size']}
+                     for entry in json.loads(resource_manifest.read_bytes())['files']]
+        return {'original_files': originals, 'archive_tables': tables}
+
 
 def dialogue(data):
     endian = '<' if u32(data, 0) == MAGIC else '>'
@@ -153,7 +193,7 @@ def make_edit(name, entry, packed, before, after):
         cursor = change['offset']+change['remove']
     rebuilt.extend(before[cursor:])
     assert rebuilt == after
-    return {'path': name.removesuffix('.rz')+'.rz', **entry, 'source_sha256': hashlib.sha256(packed).hexdigest(),
+    return {'path': name, 'compressed': packed.startswith(b'RZ'), **entry, 'source_sha256': hashlib.sha256(packed).hexdigest(),
             'unpacked_size': len(before), 'changes': changes, 'output_size': len(after),
             'output_sha256': hashlib.sha256(after).hexdigest()}
 
@@ -212,6 +252,7 @@ def build(game_root, chinese_root, output):
     manifest = {'schema': 1, 'language': 'zh-Hans', 'resource_identity': 'ea15579ce7a45045ca313f06221090c575ad6c6affd26932a8d59393732ba3a4',
                 'files': edits, 'font': {'path': 'art/hud/fonts_latin.gfx', 'asset': 'fonts_latin.gfx',
                 'bytes': len(font), 'sha256': hashlib.sha256(font).hexdigest()}}
+    manifest.update(game.view_metadata(edits))
     (output/'localization.json').write_text(json.dumps(manifest, ensure_ascii=False, separators=(',', ':'))+'\n', encoding='utf8')
     report = {'language': 'zh-Hans', 'menu_entries': len(original_menu), 'categories': categories,
               'edited_files': len(edits), 'skipped_missing_files': skipped, 'mismatches': errors,

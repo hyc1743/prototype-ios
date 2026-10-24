@@ -8,8 +8,8 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'tools'))
-from chinese_resources import dialogue, make_edit, replace_dialogue
-from game_localization import MAGIC, pack, unpack
+from chinese_resources import GameArchives, dialogue, make_edit, replace_dialogue
+from game_localization import MAGIC, pack, path_key, unpack
 from localization_bundle import apply, open_bundle, seal
 from swf_fonts import Font, adapt_font_library, swf_parts
 
@@ -43,6 +43,30 @@ def library(donor=False):
 
 
 class ChineseResourceTests(unittest.TestCase):
+    def test_archive_view_hides_localized_members_and_font_without_changing_original(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            names = [r'\art\hud\fe_textbible.p3d.rz', r'\art\hud\fonts_latin.gfx', r'\art\other.gfx']
+            rows = sorted((path_key(name), 4096+i*2048, 1) for i, name in enumerate(names))
+            table = b''.join(struct.pack('>III', *row) for row in rows)
+            metadata = bytes(8)
+            for name in names:
+                raw = name.encode()+b'\0'
+                metadata += bytes(12)+struct.pack('<I', len(raw))+raw+bytes(3)
+            header = b'ATG CORE CEMENT LIBRARY\0'.ljust(32, b'\0')+bytes([2, 1, 1, 1])
+            header += struct.pack('>6I', 60, len(table), 60+len(table), len(metadata), 0, 3)
+            archive = root/'00art.rcf'; archive.write_bytes(header+table+metadata)
+            before = archive.read_bytes()
+            manifest = GameArchives(root).view_metadata([{'path': 'art/hud/fe_textbible.p3d.rz'}])
+            self.assertEqual(archive.read_bytes(), before)
+            changed = list(struct.iter_unpack('>III', base64.b64decode(manifest['archive_tables'][0]['data'])))
+            self.assertEqual(changed, sorted(changed))
+            self.assertEqual(len(changed), len(rows))
+            hashes = {row[0] for row in changed}
+            self.assertNotIn(path_key(names[0]), hashes)
+            self.assertNotIn(path_key(names[1]), hashes)
+            self.assertIn(next(row for row in rows if row[0] == path_key(names[2])), changed)
+
     def test_big_and_little_endian_subtitle_edits_preserve_native_audio_bytes(self):
         for endian in ('<', '>'):
             before = audio(endian)

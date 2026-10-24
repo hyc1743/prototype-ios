@@ -11,6 +11,7 @@ struct ProbePad {
   SDL_Joystick *joystick = nullptr;
   Uint64 start = 0;
   int previous = -1;
+  Uint64 pause_start = 0;
 };
 
 static void SDLCALL UpdatePad(void *userdata) {
@@ -20,7 +21,10 @@ static void SDLCALL UpdatePad(void *userdata) {
   const int phase = int(elapsed / 8000);
   // Alternate Start and confirm. These are ordinary SDL gamepad
   // events; the translated game and its input provider receive no patches.
-  const int pressed = phase > 0 && PrototypeNativeProbeMaxDraws() < 1000 && elapsed % 8000 < 250
+  if (!pad.pause_start && elapsed >= 240000 && PrototypeNativeProbeMaxDraws() >= 1200)
+    pad.pause_start = elapsed;
+  const int pressed = pad.pause_start ? (elapsed-pad.pause_start < 250 ? SDL_GAMEPAD_BUTTON_START : -1)
+      : phase > 0 && PrototypeNativeProbeMaxDraws() < 1000 && elapsed % 8000 < 250
       ? (phase % 2 ? SDL_GAMEPAD_BUTTON_START : SDL_GAMEPAD_BUTTON_SOUTH) : -1;
   if (pressed == pad.previous) return;
   for (int button = 0; button < 15; ++button)

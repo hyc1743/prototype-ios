@@ -379,7 +379,9 @@ static int SDLCALL PrototypeSDLMain(int argc, char **argv) {
             std::vector<std::string> arguments;
             arguments.emplace_back(argc > 0 && argv && argv[0] ? argv[0] : "Prototype");
             for (int i = 1; i < argc; ++i) if (argv[i]) arguments.emplace_back(argv[i]);
-            arguments.emplace_back("--game_data_root=" + std::string(documents.fileSystemRepresentation) + "/game");
+            std::string localizedRoot = std::string(documents.fileSystemRepresentation) + "/game-zh";
+            setenv("PROTOTYPE_GAME_ROOT", localizedRoot.c_str(), 1);
+            arguments.emplace_back("--game_data_root=" + localizedRoot);
             arguments.emplace_back("--user_data_root=" + std::string(documents.fileSystemRepresentation) + "/saves");
             arguments.emplace_back("--cache_root=" + std::string(documents.fileSystemRepresentation) + "/cache");
             arguments.emplace_back("--log_file=" + std::string(documents.fileSystemRepresentation) + "/engine.log");

@@ -2,6 +2,7 @@
 #import <CommonCrypto/CommonDigest.h>
 #include <zlib.h>
 #include <stdio.h>
+#include <sys/clonefile.h>
 
 static NSError *ChineseError(NSString *message) {
     return [NSError errorWithDomain:@"PrototypeChinese" code:1
@@ -63,6 +64,76 @@ static BOOL Backup(NSURL *target, NSURL *backups, NSString *path, NSError **erro
         [files copyItemAtURL:target toURL:backup error:error];
 }
 
+static BOOL PrepareChineseView(NSDictionary *manifest, NSURL *original, NSURL *game,
+        void (^progress)(NSString *, double), NSError **error) {
+    NSFileManager *files = NSFileManager.defaultManager;
+    NSUInteger clones = 0, copies = 0;
+    NSArray *originals = manifest[@"original_files"];
+    if (![originals isKindOfClass:NSArray.class] || originals.count > 1024 || originals.count == 0) {
+        *error = ChineseError(@"中文资源视图清单无效。"); return NO;
+    }
+    for (NSDictionary *entry in originals) {
+        NSString *relative = entry[@"path"];
+        NSURL *source = Destination(original, relative);
+        NSURL *target = Destination(game, relative);
+        if (!source || !target) { *error = ChineseError(@"中文资源视图路径无效。"); return NO; }
+        NSDictionary *attributes = [files attributesOfItemAtPath:target.path error:NULL];
+        if ([attributes[NSFileSize] unsignedLongLongValue] == [entry[@"bytes"] unsignedLongLongValue]) continue;
+        if (progress) progress(@"正在准备独立中文资源视图…", 0.0);
+        if (![files createDirectoryAtURL:target.URLByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:error]) return NO;
+        NSURL *temporary = [target URLByAppendingPathExtension:@"chinese-clone-tmp"];
+        if ([files fileExistsAtPath:temporary.path] && ![files removeItemAtURL:temporary error:error]) return NO;
+        if (clonefile(source.fileSystemRepresentation, temporary.fileSystemRepresentation, CLONE_NOFOLLOW) == 0) {
+            ++clones;
+        } else {
+            if ([files fileExistsAtPath:temporary.path] && ![files removeItemAtURL:temporary error:error]) return NO;
+            if (![files copyItemAtURL:source toURL:temporary error:error]) return NO;
+            ++copies;
+        }
+        if ([files fileExistsAtPath:target.path] && ![files removeItemAtURL:target error:error]) return NO;
+        if (![files moveItemAtURL:temporary toURL:target error:error]) return NO;
+    }
+    for (NSDictionary *table in manifest[@"archive_tables"]) {
+        NSURL *target = Destination(game, table[@"archive"]);
+        NSData *replacement = [[NSData alloc] initWithBase64EncodedString:table[@"data"] options:0];
+        if (!target || !replacement || ![Digest(replacement) isEqual:table[@"sha256"]]) {
+            *error = ChineseError(@"中文资源归档索引校验失败。"); return NO;
+        }
+        NSFileHandle *file = [NSFileHandle fileHandleForUpdatingURL:target error:error];
+        if (!file) return NO;
+        unsigned long long offset = [table[@"offset"] unsignedLongLongValue];
+        NSURL *originalURL = Destination(original, table[@"archive"]);
+        NSFileHandle *originalFile = [NSFileHandle fileHandleForReadingFromURL:originalURL error:error];
+        if (!originalFile) { [file closeFile]; return NO; }
+        [originalFile seekToFileOffset:offset];
+        if (![Digest([originalFile readDataOfLength:replacement.length]) isEqual:table[@"source_sha256"]]) {
+            [originalFile closeFile]; [file closeFile];
+            *error = ChineseError(@"原资源索引不匹配，未改写原资源。"); return NO;
+        }
+        [file seekToFileOffset:offset];
+        NSData *existing = [file readDataOfLength:replacement.length];
+        NSString *hash = Digest(existing);
+        if (![hash isEqual:table[@"sha256"]]) {
+            if (![hash isEqual:table[@"source_sha256"]]) {
+                [file closeFile]; [originalFile closeFile];
+                *error = ChineseError(@"中文资源视图归档不匹配。"); return NO;
+            }
+            [file seekToFileOffset:offset];
+            [file writeData:replacement];
+            [file synchronizeFile];
+        }
+        [file closeFile];
+        [originalFile seekToFileOffset:offset];
+        BOOL preserved = [Digest([originalFile readDataOfLength:replacement.length]) isEqual:table[@"source_sha256"]];
+        [originalFile closeFile];
+        if (!preserved) { *error = ChineseError(@"原资源索引保留校验失败。"); return NO; }
+    }
+    [game setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:NULL];
+    fprintf(stderr, "[prototype-localization] Chinese source view: %lu clones, %lu copies, %lu private archive indexes; original indexes verified unchanged\n",
+            (unsigned long)clones, (unsigned long)copies, (unsigned long)[manifest[@"archive_tables"] count]);
+    return YES;
+}
+
 BOOL PrototypeInstallChinese(NSURL *bundle, NSURL *documents,
         void (^progress)(NSString *, double), NSError **error) {
     @try {
@@ -78,7 +149,8 @@ BOOL PrototypeInstallChinese(NSURL *bundle, NSURL *documents,
         NSArray *edits = manifest[@"files"];
         if (edits.count > 20000) { *error = ChineseError(@"中文资源数量异常。"); return NO; }
         NSString *identity = Digest(rawManifest);
-        NSURL *game = [documents URLByAppendingPathComponent:@"game" isDirectory:YES];
+        NSURL *originalGame = [documents URLByAppendingPathComponent:@"game" isDirectory:YES];
+        NSURL *game = [documents URLByAppendingPathComponent:@"game-zh" isDirectory:YES];
         NSURL *receipt = [documents URLByAppendingPathComponent:@".prototype-chinese-v1"];
         NSString *installed = [NSString stringWithContentsOfURL:receipt encoding:NSUTF8StringEncoding error:NULL];
         NSDictionary *font = manifest[@"font"];
@@ -91,6 +163,8 @@ BOOL PrototypeInstallChinese(NSURL *bundle, NSURL *documents,
         }
         BOOL complete = [installed isEqualToString:identity];
         if (complete) {
+            for (NSDictionary *entry in manifest[@"original_files"])
+                if (![files fileExistsAtPath:Destination(game, entry[@"path"]).path]) { complete = NO; break; }
             for (NSDictionary *edit in edits) {
                 NSURL *target = Destination(game, edit[@"path"]);
                 if (!target || ![files fileExistsAtPath:target.path]) { complete = NO; break; }
@@ -105,13 +179,14 @@ BOOL PrototypeInstallChinese(NSURL *bundle, NSURL *documents,
         }
         NSURL *backups = [documents URLByAppendingPathComponent:@"LocalizationBackups/pre-Chinese" isDirectory:YES];
         if (progress) progress(@"正在准备中文文本与字库…", 0.0);
+        if (!PrepareChineseView(manifest, originalGame, game, progress, error)) return NO;
         NSMutableDictionary<NSString *, NSFileHandle *> *archives = [NSMutableDictionary new];
         NSUInteger index = 0;
         for (NSDictionary *edit in edits) {
             @autoreleasepool {
                 NSString *name = edit[@"path"];
                 NSURL *target = Destination(game, name);
-                if (!target || ![name hasSuffix:@".p3d.rz"]) {
+                if (!target || (![name hasSuffix:@".p3d.rz"] && ![name hasSuffix:@".p3d"])) {
                     *error = ChineseError(@"中文资源目标路径无效。"); return NO;
                 }
                 // A previous interrupted installation may already have completed this file.
@@ -126,7 +201,7 @@ BOOL PrototypeInstallChinese(NSURL *bundle, NSURL *documents,
                 }
                 NSFileHandle *source = archives[archiveName];
                 if (!source) {
-                    source = [NSFileHandle fileHandleForReadingFromURL:[game URLByAppendingPathComponent:archiveName] error:error];
+                    source = [NSFileHandle fileHandleForReadingFromURL:[originalGame URLByAppendingPathComponent:archiveName] error:error];
                     if (!source) return NO;
                     archives[archiveName] = source;
                 }
@@ -158,7 +233,7 @@ BOOL PrototypeInstallChinese(NSURL *bundle, NSURL *documents,
                 if (output.length != [edit[@"output_size"] unsignedLongLongValue] || ![Digest(output) isEqual:edit[@"output_sha256"]]) {
                     *error = ChineseError(@"中文资源生成校验失败。"); return NO;
                 }
-                NSData *compressed = Deflate(output, error);
+                NSData *compressed = [edit[@"compressed"] boolValue] ? Deflate(output, error) : output;
                 if (!compressed || (![installed length] && !Backup(target, backups, name, error)) ||
                     ![files createDirectoryAtURL:target.URLByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:error] ||
                     ![compressed writeToURL:target options:NSDataWritingAtomic error:error]) return NO;
