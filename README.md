@@ -7,7 +7,7 @@ Prototype iOS 是一个面向 iPhone 和 iPad 的原生移植项目。项目将 
 正式版下载：
 
 - [GitHub Release v1.0.0](https://github.com/hyc1743/prototype-ios/releases/tag/v1.0.0)
-- [直接下载 IPA](https://github.com/hyc1743/prototype-ios/releases/download/v1.0.0/Prototype-native-development.ipa)
+- [直接下载 IPA](https://github.com/hyc1743/prototype-ios/releases/download/v1.0.0/Prototype-1.0.0.ipa)
 - [资源分卷说明](docs/resource-packs.md)
 
 ## 功能与状态
