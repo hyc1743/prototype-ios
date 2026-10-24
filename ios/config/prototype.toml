@@ -17,7 +17,9 @@ p2_native_record_thread = true
 p2_native_async_pipelines = false
 p2_native_pipeline_prewarm = true
 p2_min_frame_vblanks = 1
-p2_pace_before_present = false
+# Wait before handing a frame to the presentation queue. This keeps bursts of
+# late submissions from turning into alternating long and short frames.
+p2_pace_before_present = true
 p2_native_depth24 = true
 gpu_specialize_texture_signs = true
 p2_native_copy_specialization = true
@@ -31,6 +33,10 @@ p2_native_sampled_stable_ranges = true
 p2_native_sampled_min_bytes = 16384
 p2_native_max_anisotropy = 1
 p2_native_texture_lod_bias = 1.0
+# Reuse device memory for streaming textures and keep recently used material
+# textures resident. This avoids allocation/upload spikes during movement.
+p2_native_texture_pool = 64
+p2_native_texture_cache_mb = 64
 p2_native_async_present = false
 # Use the renderer's existing compatibility result path for guest occlusion.
 p2_native_occlusion_queries = false
@@ -39,6 +45,11 @@ proto_apple_relax_post_vertex = true
 # Keep the native iOS draw batch at the last known playable size while checking
 # the scene-loss regression reported after native-dev.7.
 proto_apple_draw_batch = 128
+# Render the game at a bounded internal size and let the existing FSR present
+# pass scale it to the device. This lowers fragment work while keeping the
+# 1280x720 game coordinate system and UI layout.
+proto_render_width = 960
+proto_render_height = 544
 present_effect = "fsr"
 # Prototype 2 specific skips are off: they were matched to its passes, not to Prototype 1's.
 p2_native_skip_depth_prepass = false

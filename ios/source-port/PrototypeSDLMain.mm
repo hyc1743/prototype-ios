@@ -346,6 +346,33 @@ static bool PrepareDocuments(NSURL **documents, NSError **error) {
         }
         if (![@"5\n" writeToURL:queryMigration atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
     }
+    // The performance profile is additive: preserve an existing player choice,
+    // while older installs receive the bounded render size, texture reuse and
+    // pre-present pacing shipped with the optimized build.
+    NSURL *performanceMigration = [root URLByAppendingPathComponent:@".prototype-config-v6"];
+    if (![files fileExistsAtPath:performanceMigration.path]) {
+        NSString *text = [NSString stringWithContentsOfURL:config encoding:NSUTF8StringEncoding error:error];
+        if (!text) return false;
+        NSMutableString *changed = [text mutableCopy];
+        void (^appendIfMissing)(NSString *, NSString *) = ^(NSString *key, NSString *line) {
+            NSString *pattern = [NSString stringWithFormat:@"(?m)^[\\t ]*%@[\\t ]*=", key];
+            NSRegularExpression *r = [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:NULL];
+            if (![r numberOfMatchesInString:changed options:0 range:NSMakeRange(0, changed.length)])
+                [changed appendFormat:@"\n%@\n", line];
+        };
+        appendIfMissing(@"p2_pace_before_present", @"p2_pace_before_present = true");
+        appendIfMissing(@"p2_native_texture_pool", @"p2_native_texture_pool = 64");
+        appendIfMissing(@"p2_native_texture_cache_mb", @"p2_native_texture_cache_mb = 64");
+        appendIfMissing(@"proto_render_width", @"proto_render_width = 960");
+        appendIfMissing(@"proto_render_height", @"proto_render_height = 544");
+        if (![changed isEqualToString:text]) {
+            NSURL *backup = [root URLByAppendingPathComponent:@"prototype.pre-v6.toml"];
+            if (![files fileExistsAtPath:backup.path] && ![files copyItemAtURL:config toURL:backup error:error]) return false;
+            if (![changed writeToURL:config atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
+            fprintf(stderr, "[prototype-source] migrated performance defaults (backup: prototype.pre-v6.toml)\n");
+        }
+        if (![ @"6\n" writeToURL:performanceMigration atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
+    }
     fprintf(stderr, "[prototype-source] build=%s renderer=sdk-vertex-expansion audio=stereo-paced config=%s\n",
         [[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] UTF8String], config.fileSystemRepresentation);
     NSString *game = [root.path stringByAppendingPathComponent:@"game"];
