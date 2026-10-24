@@ -150,7 +150,7 @@ def build(args):
     controls_report["license_sha256"] = controls_license_sha
     (logs / "controls.json").write_text(json.dumps(controls_report, indent=2) + "\n", encoding="utf8")
     extra = ";".join([str(ROOT / p) for p in ["ios/import/PrototypeImportViewController.m", "ios/import/PrototypeResourceInstaller.m",
-                                              "ios/import/PrototypeChineseInstaller.m", "ios/runtime/PrototypeVulkan.c"]]
+                                              "ios/import/PrototypeChineseInstaller.m"]]
                      + [str(controls / p) for p in ["DmGamepad.m", "PrototypeNativePad.m"]])
     command = ["cmake", "-S", stage, "-B", build_dir, "-G", "Ninja",
                "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_SYSTEM_NAME=iOS", "-DCMAKE_OSX_SYSROOT=iphoneos",
