@@ -281,6 +281,9 @@ def publication_files(root, manifest):
         elif entry == "ci-inputs/codegen.enc":
             from ci_codegen import inspect_container
             inspect_container(data)
+        elif entry == "ci-inputs/chinese.enc":
+            from localization_bundle import inspect_container
+            inspect_container(data)
         elif (len(data) > 5 * 1024 * 1024 or b"\0" in data or
               re.search(rb"(?m)^-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----\r?$", data)):
             raise ValueError("Publication entry is binary, oversized or contains a private key: " + entry)

@@ -151,6 +151,17 @@ def probe(args):
         report["resources"] = verify(parts, manifest, restore=private)
         saves, cache = out / "private/saves", out / "private/cache"
         saves.mkdir(); cache.mkdir()
+        if args.localization:
+            helper = out / 'localization-apply'
+            run(['xcrun', '--sdk', 'macosx', 'clang', '-O2', '-fobjc-arc', '-fblocks',
+                 '-I', ROOT / 'ios/import', ROOT / 'ios/import/PrototypeChineseInstaller.m',
+                 ROOT / 'tests/native/localization_apply.m', '-framework', 'Foundation', '-lz',
+                 '-o', helper], env=env, log=evidence / 'localization-compile.log')
+            run([helper, args.localization.resolve(), private], env=env,
+                log=evidence / 'localization-install.log')
+            manifest = json.loads((args.localization / 'localization.json').read_bytes())
+            report['localization'] = {'language': manifest['language'], 'files': len(manifest['files']),
+                'manifest_sha256': sha256(args.localization / 'localization.json')}
         config = out / "private/prototype.toml"
         shutil.copyfile(ROOT / "ios/config/prototype.toml", config)
         env["PROTOTYPE_CONFIG_PATH"] = str(config)
@@ -269,7 +280,8 @@ def main():
     vertex_math.add_argument("--relax-post-vertex", action="store_true")
     vertex_math.add_argument("--strict-post-vertex", action="store_true")
     parser.add_argument("--single-thread-recording", action="store_true")
-    parser.add_argument("--draw-batch", type=int, choices=(128, 256), default=128)
+    parser.add_argument("--draw-batch", type=int, choices=(128, 256), default=256)
+    parser.add_argument("--localization", type=Path)
     result = probe(parser.parse_args())
     print(json.dumps(result, indent=2))
     return 0 if result["status"] == "observation_finished" else 1

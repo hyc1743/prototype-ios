@@ -63,6 +63,10 @@ jobs:
         env:
           PROTOTYPE_CODEGEN_KEY: ${{ secrets.PROTOTYPE_CODEGEN_KEY }}
         run: python tools/ci_codegen.py open ci-inputs/codegen.enc "$RUNNER_TEMP/prototype-codegen"
+      - name: Authenticate Chinese text and console font edits
+        env:
+          PROTOTYPE_CODEGEN_KEY: ${{ secrets.PROTOTYPE_CODEGEN_KEY }}
+        run: python tools/localization_bundle.py open ci-inputs/chinese.enc "$RUNNER_TEMP/prototype-chinese"
       - name: Fetch reviewed original source
         run: |
           git init references/prototype-switch
@@ -84,7 +88,7 @@ jobs:
             batch-256) flags=(--draw-batch=256) ;;
             *) exit 2 ;;
           esac
-          python tools/mac_source_probe.py --generated "$RUNNER_TEMP/prototype-codegen" --download-parts --renderer ${{ matrix.renderer }} "${flags[@]}"
+          python tools/mac_source_probe.py --generated "$RUNNER_TEMP/prototype-codegen" --localization "$RUNNER_TEMP/prototype-chinese" --download-parts --renderer ${{ matrix.renderer }} "${flags[@]}"
       - name: Seal private shader observations
         if: always()
         env:

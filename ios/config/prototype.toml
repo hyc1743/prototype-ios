@@ -1,6 +1,7 @@
 # PROTOTYPE / Nintendo Switch - 1.0.0 (free, t.me/fspores)
 # ReXGlue port; SDK masseffect-nx + prototype2-nx patch; native renderer from prototype2-nx (penettrator).
-# Default to English, which is included in the bundled resource set.
+# The engine's English slot is localized to Chinese by bundled text/font edits.
+# The underlying resources-v1 archives are left intact (their original text is PT-BR).
 # Chinese requires matching translated game resources, not only a locale ID.
 p2_renderer = "native"
 render_target_path_vulkan = "fsi"
@@ -35,6 +36,8 @@ p2_native_async_present = false
 p2_native_occlusion_queries = false
 # Apple full-screen vertex arithmetic compatibility.
 proto_apple_relax_post_vertex = true
+# Bounded batches reduce Metal command-buffer submissions in busy scenes.
+proto_apple_draw_batch = 256
 present_effect = "fsr"
 # Prototype 2 specific skips are off: they were matched to its passes, not to Prototype 1's.
 p2_native_skip_depth_prepass = false

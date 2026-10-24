@@ -229,7 +229,7 @@ REXCVAR_DEFINE_BOOL(proto_apple_static_constants, false, "Prototype",
                        "Diagnostic: use immutable per-draw constant descriptors without dynamic offsets");
 REXCVAR_DEFINE_BOOL(proto_apple_relax_post_vertex, true, "Prototype",
                        "Use native arithmetic for Prototype's full-screen vertex shader on Apple GPUs");
-REXCVAR_DEFINE_UINT32(proto_apple_draw_batch, 128, "Prototype",
+REXCVAR_DEFINE_UINT32(proto_apple_draw_batch, 256, "Prototype",
                        "Apple bounded GPU draw batch, clamped to 64..256");
 
 namespace p2::native {
@@ -585,12 +585,15 @@ def performance_source(text):
     text = replace_once(text, '  uint32_t submission_draws = 0;', '''  uint32_t submission_draws = 0;
   uint32_t apple_perf_count = 0;
   double apple_perf_ms = 0;
+  std::array<double, 300> apple_perf_times{};
   uint64_t apple_perf_draws = 0, apple_perf_submits = 0;
   uint64_t apple_perf_fence = 0, apple_perf_upload = 0, apple_perf_drain = 0;
   uint64_t apple_perf_texture = 0, apple_perf_pipeline = 0;
   uint64_t apple_perf_last_pipeline_ns = 0, apple_perf_last_submits = 0;''')
     text = replace_once(text, '  last_swap_time = now;\n  at_last_swap = stats();', '''  if (last_swap_time.time_since_epoch().count() && frame_draw_count >= 1200) {
-    apple_perf_ms += std::chrono::duration<double, std::milli>(now-last_swap_time).count();
+    const double frame_ms = std::chrono::duration<double, std::milli>(now-last_swap_time).count();
+    apple_perf_times[apple_perf_count] = frame_ms;
+    apple_perf_ms += frame_ms;
     apple_perf_draws += frame_draw_count;
     apple_perf_submits += stats().submissions - apple_perf_last_submits;
     apple_perf_fence += frame_fence_wait_ns;
@@ -600,8 +603,10 @@ def performance_source(text):
     apple_perf_pipeline += stats().pipeline_ns - apple_perf_last_pipeline_ns;
     if (++apple_perf_count == 300) {
       constexpr double ns_per_frame_ms = 300000000.0;
-      REXLOG_WARN("[apple-perf] 300 scene frames fps={:.2f} draws/frame={:.1f} submits/frame={:.1f} fence_ms={:.2f} upload_ms={:.2f} recorder_ms={:.2f} texture_ms={:.2f} pipeline_ms={:.2f} batch={}",
-          300000.0/apple_perf_ms, double(apple_perf_draws)/300, double(apple_perf_submits)/300,
+      std::sort(apple_perf_times.begin(), apple_perf_times.end());
+      REXLOG_WARN("[apple-perf] 300 scene frames fps={:.2f} median_ms={:.2f} p95_ms={:.2f} p99_ms={:.2f} draws/frame={:.1f} submits/frame={:.1f} fence_ms={:.2f} upload_ms={:.2f} recorder_ms={:.2f} texture_ms={:.2f} pipeline_ms={:.2f} batch={}",
+          300000.0/apple_perf_ms, apple_perf_times[149], apple_perf_times[284], apple_perf_times[296],
+          double(apple_perf_draws)/300, double(apple_perf_submits)/300,
           apple_perf_fence/ns_per_frame_ms, apple_perf_upload/ns_per_frame_ms,
           apple_perf_drain/ns_per_frame_ms, apple_perf_texture/ns_per_frame_ms,
           apple_perf_pipeline/ns_per_frame_ms, REXCVAR_GET(proto_apple_draw_batch));
@@ -609,6 +614,11 @@ def performance_source(text):
       apple_perf_draws = apple_perf_submits = apple_perf_fence = apple_perf_upload = 0;
       apple_perf_drain = apple_perf_texture = apple_perf_pipeline = 0;
     }
+  } else {
+    // Menu/loading intervals must not contaminate the scene window.
+    apple_perf_count = 0; apple_perf_ms = 0;
+    apple_perf_draws = apple_perf_submits = apple_perf_fence = apple_perf_upload = 0;
+    apple_perf_drain = apple_perf_texture = apple_perf_pipeline = 0;
   }
   apple_perf_last_submits = stats().submissions;
   apple_perf_last_pipeline_ns = stats().pipeline_ns;

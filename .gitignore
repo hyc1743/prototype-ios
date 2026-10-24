@@ -9,6 +9,7 @@ references/
 work/
 out/
 artifacts/
+CH/
 __pycache__/
 *.pyc
 .DS_Store

@@ -149,7 +149,8 @@ def build(args):
         raise ValueError("Pinned nxnative controller license differs")
     controls_report["license_sha256"] = controls_license_sha
     (logs / "controls.json").write_text(json.dumps(controls_report, indent=2) + "\n", encoding="utf8")
-    extra = ";".join([str(ROOT / p) for p in ["ios/import/PrototypeImportViewController.m", "ios/import/PrototypeResourceInstaller.m"]]
+    extra = ";".join([str(ROOT / p) for p in ["ios/import/PrototypeImportViewController.m", "ios/import/PrototypeResourceInstaller.m",
+                                              "ios/import/PrototypeChineseInstaller.m"]]
                      + [str(controls / p) for p in ["DmGamepad.m", "PrototypeNativePad.m"]])
     command = ["cmake", "-S", stage, "-B", build_dir, "-G", "Ninja",
                "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_SYSTEM_NAME=iOS", "-DCMAKE_OSX_SYSROOT=iphoneos",
@@ -175,6 +176,9 @@ def build(args):
     dm.mkdir(exist_ok=True)
     shutil.copyfile(ROOT / "ios/resources/PrototypeData.manifest.json", dm / "PrototypeData.manifest.json")
     shutil.copyfile(ROOT / "ios/config/prototype.toml", dm / "prototype.toml")
+    localization = args.localization.resolve()
+    shutil.copytree(localization, dm / 'chinese')
+    locale_manifest = json.loads((localization / 'localization.json').read_bytes())
     notices = dm / "notices"
     notices.mkdir()
     shutil.copyfile(stage / "Prototype-LICENSE", notices / "Prototype-GPL-3.0.txt")
@@ -194,7 +198,8 @@ def build(args):
     ipa = output / "Prototype-native-development.ipa"
     package(app, ipa)
     report = {"kind": "development-native-ipa", "signed": False,
-              "contains_guest_executable": True, "contains_game_data": False,
+              "contains_guest_executable": True, "contains_game_data": True,
+              "game_data_scope": "Chinese font and text-only edit instructions; original game archives required",
               "runtime_verified": False, "playable_verified": False,
               "source_xex_sha256": XEX_SHA256, "codegen_zip_sha256": PINNED_ZIP_SHA256,
               "sdk_commit": SDK_COMMIT, "prototype_commit": PROTOTYPE_COMMIT,
@@ -203,7 +208,10 @@ def build(args):
               "app_icon": icon_report,
               "primitive_expansion": "SDK vertex shader fallback",
               "audio_output": "stereo with paced guest callback requests",
-              "apple_submission_draw_limit": 128,
+              "apple_submission_draw_limit": 256,
+              "localization": {"language": "zh-Hans", "text_files": len(locale_manifest['files']),
+                  "manifest_sha256": sha256(localization / 'localization.json'),
+                  "font_sha256": locale_manifest['font']['sha256']},
               "apple_audio_producer_stream": True,
               "apple_post_vertex_native_math_default": True,
               "apple_post_vertex_shader": "8CF6223D9D62D0AD",
@@ -218,6 +226,7 @@ def main():
     parser.add_argument("--generated", type=Path, required=True)
     parser.add_argument("--prototype-root", type=Path, default=ROOT / "references/prototype-switch")
     parser.add_argument("--output", type=Path, default=ROOT / "out/source-ios")
+    parser.add_argument("--localization", type=Path, required=True)
     build(parser.parse_args())
 
 

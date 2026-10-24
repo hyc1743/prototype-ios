@@ -1,5 +1,6 @@
 #import "PrototypeImportViewController.h"
 #import "PrototypeResourceInstaller.h"
+#import "PrototypeChineseInstaller.h"
 #include <stdio.h>
 #include <math.h>
 
@@ -111,12 +112,17 @@ static BOOL ImportWindowActive(UIWindow *window) {
             NSURL *manifest = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"dm/PrototypeData.manifest.json"];
             NSURL *documents = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
             PrototypeResourceInstaller *installer = [[PrototypeResourceInstaller alloc] initWithManifestURL:manifest documentsURL:documents error:&error];
-            BOOL ok = installer && [installer installWithProgress:^(NSString *phase, double fraction) {
+            void (^report)(NSString *, double) = ^(NSString *phase, double fraction) {
                 dispatch_async(dispatch_get_main_queue(), ^{
                     self->_status.text = phase;
                     self->_progress.progress = (float)fraction;
                 });
-            } error:&error];
+            };
+            BOOL ok = installer && [installer installWithProgress:report error:&error];
+            if (ok) {
+                NSURL *chinese = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"dm/chinese"];
+                ok = PrototypeInstallChinese(chinese, documents, report, &error);
+            }
             fprintf(stderr, "resources: %s\n", ok ? "ready" : error.localizedDescription.UTF8String);
             dispatch_async(dispatch_get_main_queue(), ^{
                 self->_running = NO;
