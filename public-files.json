@@ -121,7 +121,9 @@
   "ios/import/PrototypeChineseInstaller.m",
   "tests/native/localization_apply.m",
   "tests/test_chinese_resources.py",
+  "tests/test_swf_font_scale.py",
   "tools/chinese_resources.py",
   "tools/localization_bundle.py",
-  "tools/swf_fonts.py"
+  "tools/swf_fonts.py",
+  "tools/swf_font_scale.py"
 ]
