@@ -36,6 +36,7 @@ PATCHED_SDK_INPUTS = {
     "CMakeLists.txt": "c6bef64cd480a56f3c090663b9e8a57698ea69ac62cf84e0a95b48d981e24557",
     "src/system/CMakeLists.txt": "132476ae77986b2c08dab266db787dc00588820ba3f339d82feadec96d6106ee",
     "src/graphics/CMakeLists.txt": "5b4d9b4dfbf79185f9a7057866e17c3f569fe515f09e19b1bd98b61fdc0dd24a",
+    "src/ui/vulkan/vulkan_device.cpp": "c17ed2fb7b256201de2b928958f70b490d8e3a2e8f9705a87dcbf0723caeea54",
     "thirdparty/CMakeLists.txt": "0c36fce05247ebb39bce69a1c2f2e85cd2056ab80c9dd7573f79de37eecc5b0e",
     "src/system/gpu_plugin_loader.cpp": "a1cb457329921ac316c18ec0ea8943284b23ae3e267e061aefd021cc54be5ee9",
     "src/ui/vulkan/vulkan_instance.cpp": "c1d79ade03e1925f96e47f0eddeafa9919d22708c44ce84bf5cfb6935fc8c4e7",
@@ -502,6 +503,16 @@ endif()
                             "#if !REX_PLATFORM_SWITCH && !defined(REXGLUE_STATIC_RUNTIME)\n#define XE_VULKAN_LOAD_LOADER_FUNCTION")
 
     write("src/ui/vulkan/vulkan_instance.cpp", vulkan)
+    def vulkan_device_lifecycle(text):
+        text = replace_once(
+            text,
+            "namespace rex {\nnamespace ui {\nnamespace vulkan {",
+            "namespace rex {\nnamespace ui {\nnamespace vulkan {\n\nvoid prototype_vulkan_install_lifecycle_gate(VulkanDevice::Functions*, VkDevice);")
+        return replace_once(
+            text,
+            "  // Get the queues.\n",
+            "  prototype_vulkan_install_lifecycle_gate(&dfn, device->device_);\n\n  // Get the queues.\n")
+    write("src/ui/vulkan/vulkan_device.cpp", vulkan_device_lifecycle)
     # Runtime SPIRV validation is optional in this SDK already. Preserve the
     # explicit false result for a static build rather than searching host SDKs
     # or pretending validation ran. Shader compilation itself remains original.

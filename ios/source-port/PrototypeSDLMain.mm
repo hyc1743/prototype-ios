@@ -11,6 +11,7 @@
 #import <AVFoundation/AVFoundation.h>
 #import <CoreFoundation/CoreFoundation.h>
 #import "PrototypeImportViewController.h"
+#import "PrototypeVulkanLifecycle.h"
 #include <mach/mach.h>
 
 #include <cerrno>
@@ -59,6 +60,21 @@ static void InstallAudioTiming(void) {
                     AVAudioSessionInterruptionTypeEnded) ConfigureAudioTiming();
             }];
     }
+}
+
+static void InstallVulkanLifecycle(void) {
+    static id willResignActive;
+    static id didBecomeActive;
+    if (willResignActive) return;
+    NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+    willResignActive = [center addObserverForName:UIApplicationWillResignActiveNotification
+        object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *) {
+            prototype_vulkan_suspend(1);
+        }];
+    didBecomeActive = [center addObserverForName:UIApplicationDidBecomeActiveNotification
+        object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *) {
+            prototype_vulkan_suspend(0);
+        }];
 }
 
 static void LogTaskMemory(void) {
@@ -388,6 +404,7 @@ static int SDLCALL PrototypeSDLMain(int argc, char **argv) {
                 continue;
             }
             InstallAudioTiming();
+            InstallVulkanLifecycle();
             InstallMemoryDiagnostics();
             SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "uikit", SDL_HINT_OVERRIDE);
             SDL_SetHint(SDL_HINT_APP_NAME, "Prototype");
