@@ -25,7 +25,8 @@ SDK_REPOSITORY = "https://github.com/nebadasSwifty/masseffect-nx.git"
 SDK_COMMIT = "a85b0b419ec3e332165ae1617c980bd399856a44"
 DEPENDENCY_REPOSITORY = "https://github.com/rexglue/rexglue-sdk.git"
 DEPENDENCY_COMMIT = "c94f5ebdcb3c9d1a460ca48e04f9758448f8d518"
-PROTOTYPE_COMMIT = "292de4b382dbe335011d8b4f56ec4212df5ef74c"
+PROTOTYPE_COMMIT = "ea65b2e188c62be33fe00e566288e61914e4a78e"
+PATCH_COMMIT = "292de4b382dbe335011d8b4f56ec4212df5ef74c"
 PATCH_SHA256 = "a7ac79c90273ed4b17233f8f88381183270f7f232b47aa134c651e4ae4677bcc"
 CODEGEN_PATCH_SHA256 = "f9e06d2fc0e34db6805bdd6612bc8a00d5577834fc001f822634a2076bcd04d1"
 PATCHED_SDK_INPUTS = {
@@ -577,8 +578,9 @@ def prepare(args):
         raise ValueError("reviewed Prototype source has local modifications")
     names = generated_sources(generated)
     patch = upstream / "patches/rexglue-sdk-masseffect-nx.patch"
+    patch_bytes = command(["git", "-C", upstream, "show", PATCH_COMMIT + ":patches/rexglue-sdk-masseffect-nx.patch"], binary=True)
     codegen_patch = upstream / "prototype/tools/prepare_proto_codegen.py"
-    if source_sha(patch) != PATCH_SHA256 or source_sha(codegen_patch) != CODEGEN_PATCH_SHA256:
+    if hashlib.sha256(patch_bytes.replace(b"\r\n", b"\n")).hexdigest() != PATCH_SHA256 or source_sha(codegen_patch) != CODEGEN_PATCH_SHA256:
         raise ValueError("Prototype compatibility patch or generated-code transform differs")
     out.mkdir(parents=True)
     logs, diffs = out / "logs", out / "overlays"
@@ -589,7 +591,7 @@ def prepare(args):
     for original, target in (("LICENSE", "LICENSE.masseffect-nx-GPL-3.0"),
                              ("THIRD_PARTY_NOTICES.md", "NOTICE.masseffect-nx.md")):
         (sdk / target).write_bytes(command(["git", "--git-dir", sdk_cache, "show", SDK_COMMIT + ":" + original], binary=True))
-    for heading in re.findall(r"^diff --git (\S+) (\S+)$", patch.read_text(encoding="utf8"), re.MULTILINE):
+    for heading in re.findall(r"^diff --git (\S+) (\S+)$", patch_bytes.decode("utf8"), re.MULTILINE):
         if any(not path.startswith(prefix) or ".." in PurePosixPath(path).parts
                for path, prefix in zip(heading, ("a/sdk/", "b/sdk/"))):
             raise ValueError("compatibility patch leaves the SDK tree")
@@ -597,7 +599,7 @@ def prepare(args):
     # discovers the parent port repository and silently skips SDK-relative
     # patch paths when invoked from a nested preparation directory.
     canonical_patch = diffs / "upstream-prototype-sdk.patch"
-    canonical_patch.write_bytes(patch.read_bytes().replace(b"\r\n", b"\n"))
+    canonical_patch.write_bytes(patch_bytes.replace(b"\r\n", b"\n"))
     apply = ["git", "-c", "core.autocrlf=false", "-c", "core.eol=lf", "--git-dir", sdk_cache, "--work-tree", sdk, "apply"]
     command([*apply, "--check", "--whitespace=nowarn", "-p2", canonical_patch], cwd=sdk)
     command([*apply, "--whitespace=nowarn", "-p2", canonical_patch], cwd=sdk)
@@ -607,6 +609,26 @@ def prepare(args):
     prototype = out / "prototype"
     prototype.mkdir()
     shutil.copytree(upstream / "prototype/src", prototype / "src")
+    # Keep the iOS-proven stable renderer core while importing upstream's
+    # hand-written CPU scheduling/sort and generated-code speed improvements.
+    for relative in ("native/native_renderer.cpp", "native/native_renderer.h", "native/p2_native_system.cpp"):
+        data = command(["git", "-C", upstream, "show", PATCH_COMMIT + ":prototype/src/" + relative], binary=True)
+        (prototype / "src" / relative).write_bytes(data)
+    render_thread = prototype / "src/proto_render_thread.cpp"
+    if render_thread.is_file():
+        text = render_thread.read_text(encoding="utf8")
+        old = '''extern "C" void RexSwitchSetCurrentThreadPriority(int priority);
+extern "C" bool RexSwitchSetCurrentThreadMask(uint32_t mask);'''
+        new = '''#if defined(REX_PLATFORM_SWITCH) && !defined(REX_PLATFORM_IOS)
+extern "C" void RexSwitchSetCurrentThreadPriority(int priority);
+extern "C" bool RexSwitchSetCurrentThreadMask(uint32_t mask);
+#else
+static void RexSwitchSetCurrentThreadPriority(int) {}
+static bool RexSwitchSetCurrentThreadMask(uint32_t) { return false; }
+#endif'''
+        if text.count(old) != 1:
+            raise ValueError("Prototype render-thread API anchor changed")
+        render_thread.write_text(text.replace(old, new, 1), encoding="utf8", newline="\n")
     app_header = prototype / "src/prototype_app.h"
     app_before = app_header.read_text(encoding="utf8")
     app_after = replace_once(app_before, "#include <filesystem>", "#include <cstdlib>\n#include <filesystem>")
@@ -631,6 +653,19 @@ def prepare(args):
     # source and does not invoke the upstream build or the game.
     with (logs / "prepare-generated.log").open("w", encoding="utf8") as output:
         subprocess.run([sys.executable, str(codegen_patch), str(gen)], check=True, stdout=output, stderr=subprocess.STDOUT)
+    speed_root = upstream / "tools/mgr"
+    speed_steps = [("guest_cas.py", ["--gen", str(gen)]),
+                   ("vec_byteswap.py", ["--gen", str(gen)]),
+                   ("pch_neon_shuffles.py", [str(gen / "prototype_pch.h")])]
+    if not all((speed_root / name).is_file() for name, _ in speed_steps):
+        raise ValueError("Prototype 1.4.0 speed transform is missing")
+    speed_records = []
+    for name, arguments in speed_steps:
+        before_speed = inventory(gen)
+        command([sys.executable, str(speed_root / name), *arguments])
+        speed_records.append({"tool": name, "before": before_speed, "after": inventory(gen)})
+    if (speed_root / "LICENSE-mgr-nx-deko").is_file():
+        shutil.copyfile(speed_root / "LICENSE-mgr-nx-deko", out / "mgr-nx-deko-LICENSE")
     renderer = prototype / "src/native/native_renderer.cpp"
     renderer_before = renderer.read_bytes()
     before = renderer_before.decode("utf8").replace("\r\n", "\n")
@@ -679,7 +714,8 @@ def prepare(args):
               "compatibility_patch_sha256": PATCH_SHA256, "dependency_source_commit": DEPENDENCY_COMMIT,
               "dependency_pins": dependencies, "dependencies_populated": args.fetch_dependencies,
               "generated_compile_units": len(names), "generated_input_files": input_inventory,
-              "generated_prepared_files": inventory(gen), "app_source_files": inventory(prototype / "src"),
+              "generated_prepared_files": inventory(gen), "speed_patches": speed_records,
+              "app_source_files": inventory(prototype / "src"),
               "source_overlays": overlays, "cmake_sha256": sha(out / "CMakeLists.txt"),
               "ios_remaining": ["target-SDK compile/link and fiber tests", "UIKit resource importer and virtual controller",
                                 "device memory/fault/renderer/audio/save verification"],

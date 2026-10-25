@@ -187,6 +187,8 @@ def build(args):
     (notices / "nxnative-controller-MIT.txt").write_bytes(controls_license)
     for source in [ROOT / "THIRD_PARTY.md", ROOT / "LICENSE"]:
         shutil.copyfile(source, notices / source.name)
+    if (stage / "mgr-nx-deko-LICENSE").is_file():
+        shutil.copyfile(stage / "mgr-nx-deko-LICENSE", notices / "mgr-nx-deko-GPL-3.0.txt")
     # Keep all dependency license/notice texts in the distributed app.
     for p in (stage / "sdk").rglob("*"):
         if p.is_file() and p.name.upper().startswith(("LICENSE", "COPYING", "NOTICE")):

@@ -420,6 +420,18 @@ static bool PrepareDocuments(NSURL **documents, NSError **error) {
         if (![ @"10\n" writeToURL:highQualityMigration atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
         fprintf(stderr, "[prototype-source] restored high-quality iPhone profile (backup: prototype.pre-v10.toml)\n");
     }
+    NSURL *upstreamSpeedMigration = [root URLByAppendingPathComponent:@".prototype-config-v11"];
+    if (![files fileExistsAtPath:upstreamSpeedMigration.path]) {
+        NSURL *bundledConfig = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"dm/prototype.toml"];
+        NSString *clean = [NSString stringWithContentsOfURL:bundledConfig encoding:NSUTF8StringEncoding error:error];
+        if (!clean) return false;
+        NSURL *backup = [root URLByAppendingPathComponent:@"prototype.pre-v11.toml"];
+        if (![files fileExistsAtPath:backup.path] && [files fileExistsAtPath:config.path] &&
+            ![files copyItemAtURL:config toURL:backup error:error]) return false;
+        if (![clean writeToURL:config atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
+        if (![ @"11\n" writeToURL:upstreamSpeedMigration atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
+        fprintf(stderr, "[prototype-source] applied upstream speed profile (backup: prototype.pre-v11.toml)\n");
+    }
     fprintf(stderr, "[prototype-source] build=%s renderer=sdk-vertex-expansion audio=stereo-paced config=%s\n",
         [[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] UTF8String], config.fileSystemRepresentation);
     NSString *game = [root.path stringByAppendingPathComponent:@"game"];
