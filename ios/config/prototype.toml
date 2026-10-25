@@ -35,8 +35,8 @@ p2_native_max_anisotropy = 1
 p2_native_texture_lod_bias = 1.0
 # Reuse device memory for streaming textures and keep recently used material
 # textures resident. This avoids allocation/upload spikes during movement.
-p2_native_texture_pool = 16
-p2_native_texture_cache_mb = 16
+p2_native_texture_pool = 64
+p2_native_texture_cache_mb = 64
 p2_native_async_present = false
 # Use the renderer's existing compatibility result path for guest occlusion.
 p2_native_occlusion_queries = false
@@ -48,8 +48,8 @@ proto_apple_draw_batch = 128
 # Render the game at a bounded internal size and let the existing FSR present
 # pass scale it to the device. This lowers fragment work while keeping the
 # 1280x720 game coordinate system and UI layout.
-proto_render_width = 720
-proto_render_height = 400
+proto_render_width = 960
+proto_render_height = 544
 present_effect = "fsr"
 # Prototype 2 specific skips are off: they were matched to its passes, not to Prototype 1's.
 p2_native_skip_depth_prepass = false
