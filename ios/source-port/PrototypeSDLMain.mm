@@ -35,6 +35,13 @@ extern "C" void prototype_install_touch_controls(SDL_Window *) __attribute__((we
 static void ConfigureAudioTiming(void) {
     AVAudioSession *session = AVAudioSession.sharedInstance;
     NSError *error = nil;
+    if (![session setCategory:AVAudioSessionCategoryPlayback
+                          mode:AVAudioSessionModeDefault options:0 error:&error])
+        fprintf(stderr, "[prototype-source] audio category: %s\n", error.localizedDescription.UTF8String);
+    error = nil;
+    if (![session setActive:YES error:&error])
+        fprintf(stderr, "[prototype-source] audio activate: %s\n", error.localizedDescription.UTF8String);
+    error = nil;
     if (![session setPreferredSampleRate:48000 error:&error])
         fprintf(stderr, "[prototype-source] audio rate preference: %s\n", error.localizedDescription.UTF8String);
     error = nil;
@@ -372,6 +379,22 @@ static bool PrepareDocuments(NSURL **documents, NSError **error) {
             fprintf(stderr, "[prototype-source] migrated performance defaults (backup: prototype.pre-v6.toml)\n");
         }
         if (![ @"6\n" writeToURL:performanceMigration atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
+    }
+    // Repair configs written by the upstream-speed candidate. Its migration
+    // could leave a malformed TOML file after an interrupted upgrade; restore
+    // the bundled, known-good config once and keep the damaged file as backup.
+    NSURL *configRepairMigration = [root URLByAppendingPathComponent:@".prototype-config-v8"];
+    if (![files fileExistsAtPath:configRepairMigration.path]) {
+        NSURL *bundledConfig = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"dm/prototype.toml"];
+        NSString *clean = [NSString stringWithContentsOfURL:bundledConfig encoding:NSUTF8StringEncoding error:error];
+        if (!clean) return false;
+        NSURL *backup = [root URLByAppendingPathComponent:@"prototype.pre-v8.toml"];
+        if ([files fileExistsAtPath:config.path]) {
+            if (![files fileExistsAtPath:backup.path] && ![files copyItemAtURL:config toURL:backup error:error]) return false;
+            if (![clean writeToURL:config atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
+            fprintf(stderr, "[prototype-source] repaired configuration from bundled defaults (backup: prototype.pre-v8.toml)\n");
+        }
+        if (![ @"8\n" writeToURL:configRepairMigration atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
     }
     fprintf(stderr, "[prototype-source] build=%s renderer=sdk-vertex-expansion audio=stereo-paced config=%s\n",
         [[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] UTF8String], config.fileSystemRepresentation);
