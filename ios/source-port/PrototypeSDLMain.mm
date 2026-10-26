@@ -21,6 +21,7 @@
 #include <exception>
 #include <fcntl.h>
 #include <string>
+#include "PrototypeConfigDefaults.h"
 #include <unistd.h>
 #include <vector>
 
@@ -368,7 +369,7 @@ static bool PrepareDocuments(NSURL **documents, NSError **error) {
                 [changed appendFormat:@"\n%@\n", line];
         };
         appendIfMissing(@"p2_pace_before_present", @"p2_pace_before_present = true");
-        appendIfMissing(@"p2_native_texture_pool", @"p2_native_texture_pool = 64");
+        appendIfMissing(@"p2_native_texture_pool", @"p2_native_texture_pool = true");
         appendIfMissing(@"p2_native_texture_cache_mb", @"p2_native_texture_cache_mb = 64");
         appendIfMissing(@"proto_render_width", @"proto_render_width = 960");
         appendIfMissing(@"proto_render_height", @"proto_render_height = 544");
@@ -431,6 +432,24 @@ static bool PrepareDocuments(NSURL **documents, NSError **error) {
         if (![clean writeToURL:config atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
         if (![ @"11\n" writeToURL:upstreamSpeedMigration atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
         fprintf(stderr, "[prototype-source] applied upstream speed profile (backup: prototype.pre-v11.toml)\n");
+    }
+    NSURL *iosPipelineMigration = [root URLByAppendingPathComponent:@".prototype-config-v12"];
+    if (![files fileExistsAtPath:iosPipelineMigration.path]) {
+        NSString *clean = [NSString stringWithContentsOfURL:config encoding:NSUTF8StringEncoding error:error];
+        if (!clean) return false;
+        const std::string migrated = PrototypeMigrateFactoryValues(clean.UTF8String, {
+            {"p2_native_async_pipelines", "true", "false"},
+            {"p2_native_texture_pool", "64", "true"},
+        });
+        NSString *changed = [NSString stringWithUTF8String:migrated.c_str()];
+        if (![changed isEqualToString:clean]) {
+            NSURL *backup = [root URLByAppendingPathComponent:@"prototype.pre-v12.toml"];
+            if (![files fileExistsAtPath:backup.path] && [files fileExistsAtPath:config.path] &&
+                ![files copyItemAtURL:config toURL:backup error:error]) return false;
+            if (![changed writeToURL:config atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
+        }
+        if (![ @"12\n" writeToURL:iosPipelineMigration atomically:YES encoding:NSUTF8StringEncoding error:error]) return false;
+        fprintf(stderr, "[prototype-source] applied pipeline/register profile v12 (existing preferences preserved)\n");
     }
     fprintf(stderr, "[prototype-source] build=%s renderer=sdk-vertex-expansion audio=stereo-paced config=%s\n",
         [[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] UTF8String], config.fileSystemRepresentation);

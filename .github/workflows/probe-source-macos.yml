@@ -73,6 +73,7 @@ jobs:
         run: |
           git init references/prototype-switch
           git -C references/prototype-switch fetch --depth 1 https://github.com/fungalspores/prototype-switch.git 292de4b382dbe335011d8b4f56ec4212df5ef74c
+          git -C references/prototype-switch fetch --depth 1 https://github.com/fungalspores/prototype-switch.git ea65b2e188c62be33fe00e566288e61914e4a78e
           git -C references/prototype-switch checkout --detach FETCH_HEAD
       - name: Compile and observe with verified resources
         env:

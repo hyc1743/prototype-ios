@@ -589,7 +589,9 @@ def performance_source(text):
   uint64_t apple_perf_draws = 0, apple_perf_submits = 0;
   uint64_t apple_perf_fence = 0, apple_perf_upload = 0, apple_perf_drain = 0;
   uint64_t apple_perf_texture = 0, apple_perf_pipeline = 0;
-  uint64_t apple_perf_last_pipeline_ns = 0, apple_perf_last_submits = 0;''')
+  uint64_t apple_perf_last_pipeline_ns = 0, apple_perf_last_submits = 0;
+  uint64_t apple_perf_gpu = 0, apple_perf_gpu_samples = 0;
+  uint64_t apple_perf_last_gpu = 0, apple_perf_last_gpu_samples = 0;''')
     text = replace_once(text, '  last_swap_time = now;\n  at_last_swap = stats();', '''  if (last_swap_time.time_since_epoch().count() && frame_draw_count >= 1200) {
     const double frame_ms = std::chrono::duration<double, std::milli>(now-last_swap_time).count();
     apple_perf_times[apple_perf_count] = frame_ms;
@@ -601,27 +603,36 @@ def performance_source(text):
     apple_perf_drain += frame_drain_wait_ns;
     apple_perf_texture += frame_texture_ns;
     apple_perf_pipeline += stats().pipeline_ns - apple_perf_last_pipeline_ns;
+    // Existing nonblocking submission queries: fence wait is not GPU execution.
+    // Results can arrive several frames late; report coverage alongside time.
+    apple_perf_gpu += stats().gpu_ns - apple_perf_last_gpu;
+    apple_perf_gpu_samples += stats().gpu_submissions - apple_perf_last_gpu_samples;
     if (++apple_perf_count == 300) {
       constexpr double ns_per_frame_ms = 300000000.0;
       std::sort(apple_perf_times.begin(), apple_perf_times.end());
-      REXLOG_WARN("[apple-perf] 300 scene frames fps={:.2f} median_ms={:.2f} p95_ms={:.2f} p99_ms={:.2f} draws/frame={:.1f} submits/frame={:.1f} fence_ms={:.2f} upload_ms={:.2f} recorder_ms={:.2f} texture_ms={:.2f} pipeline_ms={:.2f} batch={}",
+      REXLOG_WARN("[apple-perf] 300 scene frames fps={:.2f} median_ms={:.2f} p95_ms={:.2f} p99_ms={:.2f} draws/frame={:.1f} submits/frame={:.1f} fence_ms={:.2f} upload_ms={:.2f} recorder_ms={:.2f} texture_ms={:.2f} pipeline_ms={:.2f} gpu_completed_ms/frame={:.2f} gpu_samples/frame={:.1f} batch={}",
           300000.0/apple_perf_ms, apple_perf_times[149], apple_perf_times[284], apple_perf_times[296],
           double(apple_perf_draws)/300, double(apple_perf_submits)/300,
           apple_perf_fence/ns_per_frame_ms, apple_perf_upload/ns_per_frame_ms,
           apple_perf_drain/ns_per_frame_ms, apple_perf_texture/ns_per_frame_ms,
-          apple_perf_pipeline/ns_per_frame_ms, REXCVAR_GET(proto_apple_draw_batch));
+          apple_perf_pipeline/ns_per_frame_ms, apple_perf_gpu/ns_per_frame_ms,
+          double(apple_perf_gpu_samples)/300, REXCVAR_GET(proto_apple_draw_batch));
       apple_perf_count = 0; apple_perf_ms = 0;
       apple_perf_draws = apple_perf_submits = apple_perf_fence = apple_perf_upload = 0;
       apple_perf_drain = apple_perf_texture = apple_perf_pipeline = 0;
+      apple_perf_gpu = apple_perf_gpu_samples = 0;
     }
   } else {
     // Menu/loading intervals must not contaminate the scene window.
     apple_perf_count = 0; apple_perf_ms = 0;
     apple_perf_draws = apple_perf_submits = apple_perf_fence = apple_perf_upload = 0;
     apple_perf_drain = apple_perf_texture = apple_perf_pipeline = 0;
+    apple_perf_gpu = apple_perf_gpu_samples = 0;
   }
   apple_perf_last_submits = stats().submissions;
   apple_perf_last_pipeline_ns = stats().pipeline_ns;
+  apple_perf_last_gpu = stats().gpu_ns;
+  apple_perf_last_gpu_samples = stats().gpu_submissions;
   last_swap_time = now;
   at_last_swap = stats();''')
     # Percentile diagnostics must survive the shipped warn-only log level.

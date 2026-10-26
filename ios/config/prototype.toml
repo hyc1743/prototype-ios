@@ -14,11 +14,10 @@ audio_sdl_pump = true
 # Native renderer: the values Prototype 2 0.1.0 ships with (same engine).
 p2_native_msaa = false
 p2_native_record_thread = true
-p2_native_async_pipelines = true
+p2_native_async_pipelines = false
 p2_native_pipeline_prewarm = true
 p2_min_frame_vblanks = 1
-# Wait before handing a frame to the presentation queue. This keeps bursts of
-# late submissions from turning into alternating long and short frames.
+# Additional host pacing is disabled; retain the game's own timing.
 p2_pace_before_present = false
 p2_native_depth24 = true
 gpu_specialize_texture_signs = true
@@ -35,7 +34,7 @@ p2_native_max_anisotropy = 1
 p2_native_texture_lod_bias = 1.0
 # Reuse device memory for streaming textures and keep recently used material
 # textures resident. This avoids allocation/upload spikes during movement.
-p2_native_texture_pool = 64
+p2_native_texture_pool = true
 p2_native_texture_cache_mb = 64
 p2_native_async_present = false
 # Use the renderer's existing compatibility result path for guest occlusion.

@@ -200,12 +200,19 @@ def build(args):
     native = inspect_native_app(app, expected, nm, dependencies)
     ipa = output / "Prototype-native-development.ipa"
     package(app, ipa)
+    prepared = json.loads((stage / "source-port-report.json").read_text(encoding="utf8"))
     report = {"kind": "development-native-ipa", "signed": False,
               "contains_guest_executable": True, "contains_game_data": True,
               "game_data_scope": "Chinese font and text-only edit instructions; original game archives required",
               "runtime_verified": False, "playable_verified": False,
               "source_xex_sha256": XEX_SHA256, "codegen_zip_sha256": PINNED_ZIP_SHA256,
               "sdk_commit": SDK_COMMIT, "prototype_commit": PROTOTYPE_COMMIT,
+              "renderer_core_commit": prepared["renderer_core_commit"],
+              "renderer_register_lookup_commit": prepared["renderer_register_lookup_commit"],
+              "native_system_commit": prepared["native_system_commit"],
+              "native_system_overlays": prepared["native_system_overlays"],
+              "speed_patches": prepared["speed_patches"],
+              "bundled_config_sha256": sha256(dm / "prototype.toml"),
               "moltenvk_license_included": True,
               "resource_import_smoke": import_report, "native_controls": controls_report, "requires_jit": False,
               "app_icon": icon_report,

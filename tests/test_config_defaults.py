@@ -29,6 +29,16 @@ int main() {
     "# no active values\nfast = false\nrenderer = \"xenos\"\n");
   assert(PrototypeMigrateFactoryValues("fast=true\nrenderer=\"native\" # note", defaults) ==
     "fast=false\nrenderer=\"xenos\" # note");
+  const auto pipeline = {PrototypeFactoryValue{"p2_native_async_pipelines", "true", "false"},
+                         PrototypeFactoryValue{"p2_native_texture_pool", "64", "true"}};
+  const auto device = "p2_native_async_pipelines = true # preference\r\n"
+                      "p2_native_texture_pool = 64\r\nproto_render_width = 1280\r\n";
+  const auto upgraded = PrototypeMigrateFactoryValues(device, pipeline);
+  assert(upgraded == "p2_native_async_pipelines = false # preference\r\n"
+                     "p2_native_texture_pool = true\r\nproto_render_width = 1280\r\n");
+  assert(PrototypeMigrateFactoryValues(upgraded, pipeline) == upgraded);
+  assert(PrototypeMigrateFactoryValues("p2_native_async_pipelines=false\np2_native_texture_pool=false\n", pipeline) ==
+                                     "p2_native_async_pipelines=false\np2_native_texture_pool=false\n");
 }
 '''
         with tempfile.TemporaryDirectory() as directory:
