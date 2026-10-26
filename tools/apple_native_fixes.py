@@ -731,3 +731,46 @@ uint64_t frames_with_data = 0;''')
   frames_with_data = 0;
   frames_of_silence = 0;''')
     return text
+
+
+def native_system_source(system_text):
+    """Port register dispatch and measure existing ring waits on the pinned core."""
+    system_text = replace_once(system_text, "  void WriteRegister(uint32_t index, uint32_t value) {", '''  void WriteRegister(uint32_t index, uint32_t value) {
+    // Upstream fast path: special MMIO handlers all live below 0x1928.
+    if (index >= 0x1928 && index < kRegisterCount) [[likely]] {
+      const uint32_t old_value = registers_[index];
+      if (old_value == value) return;
+      registers_[index] = value;
+      renderer_.RegisterWritten(index, old_value, value);
+      return;
+    }
+    WriteRegisterSlow(index, value);
+  }
+
+  void WriteRegisterSlow(uint32_t index, uint32_t value) {''')
+    system_text = replace_once(system_text, "    const RendererStats& s = renderer_.stats();\n    const uint64_t pipelines = s.pipelines_created - frame_start_pipelines_;", '''    const RendererStats& s = renderer_.stats();
+    // Reuse the existing per-frame counters; no clocks on register/draw paths.
+    // ring_idle is time awaiting commands, not necessarily idle guest CPU time.
+    struct ApplePacingWindow {
+      uint32_t count = 0;
+      double wall_ms = 0;
+      uint64_t idle_ns = 0, poll_ns = 0, hold_ns = 0;
+    };
+    static ApplePacingWindow apple_pacing;
+    if (s.frame_draws >= 1200) {
+      ++apple_pacing.count;
+      apple_pacing.wall_ms += ms;
+      apple_pacing.idle_ns += idle_ns;
+      apple_pacing.poll_ns += game_wait_ns;
+      apple_pacing.hold_ns += hold_ns;
+      if (apple_pacing.count == 300) {
+        REXLOG_WARN("[apple-pacing] scene_frames=300 frame_ms={:.2f} ring_idle_ms={:.2f} guest_poll_ms={:.2f} host_hold_ms={:.2f}",
+            apple_pacing.wall_ms / 300.0, double(apple_pacing.idle_ns) / 300000000.0,
+            double(apple_pacing.poll_ns) / 300000000.0, double(apple_pacing.hold_ns) / 300000000.0);
+        apple_pacing = {};
+      }
+    } else {
+      apple_pacing = {};
+    }
+    const uint64_t pipelines = s.pipelines_created - frame_start_pipelines_;''')
+    return system_text

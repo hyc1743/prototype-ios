@@ -9,10 +9,28 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
 from apple_native_fixes import (audio_source, renderer_source, translator_source,
                                 alias_pass_source, capture_pass_source, attachment_pass_source,
-                                constant_descriptor_source)
+                                constant_descriptor_source, native_system_source)
 
 
 class AppleNativeFixTests(unittest.TestCase):
+    def test_native_pacing_anchor_does_not_collide_with_periodic_report(self):
+        source = '''  void WriteRegister(uint32_t index, uint32_t value) {
+    if (index >= kRegisterCount) return;
+  }
+  void Report() {
+    const RendererStats& s = renderer_.stats();
+  }
+  void ReportSlowFrame() {
+    const RendererStats& s = renderer_.stats();
+    const uint64_t pipelines = s.pipelines_created - frame_start_pipelines_;
+  }
+'''
+        result = native_system_source(source)
+        self.assertEqual(result.count('const RendererStats& s = renderer_.stats();'), 2)
+        self.assertEqual(result.count('const uint64_t pipelines ='), 1)
+        self.assertIn('void WriteRegisterSlow(', result)
+        self.assertEqual(result.count('[apple-pacing]'), 1)
+
     def test_constant_descriptors_do_not_span_incompatible_stage_bindings(self):
         compiler = shutil.which('g++') or shutil.which('clang++')
         if not compiler:
